@@ -109,11 +109,13 @@ async function del(p, i) {
     await page.waitForTimeout(500)
     const toast = await page.locator('[role=status], .toast').allInnerTexts()
     check('有红图时点保存：不提交、给提示', page.url().endsWith('/kitchen/upload') && toast.join(' ').includes('先换掉 2 张有问题的照片'), toast.join(' | ').slice(0, 80))
-    // 本机草稿只存合格的
+    // 需求 v2.4.6 §12-33 第 2 条：本机草稿只存文字，照片不存（原来是“只存合格的”）
     await page.waitForTimeout(500)
     await page.reload({ waitUntil: 'networkidle' })
     await page.waitForTimeout(1200)
-    check('刷新后恢复的草稿只有 3 张合格照片', (await tiles(page).count()) === 3 && (await page.locator('.photo-tile.is-bad').count()) === 0, `${await tiles(page).count()} 张`)
+    check('刷新后只恢复文字、照片要重新选', (await tiles(page).count()) === 0 && (await page.locator('#f-name').inputValue()) === '番茄炒蛋', `${await tiles(page).count()} 张`)
+    const dbs = await page.evaluate(async () => (indexedDB.databases ? (await indexedDB.databases()).map((d) => d.name) : []))
+    check('IndexedDB 里没有照片草稿库', !dbs.includes('koala-canteen'), dbs.join(','))
   }
   await ctx.close()
 }

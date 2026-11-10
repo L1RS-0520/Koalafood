@@ -12,7 +12,7 @@ import { cleanContent, emptyContent, RecipeEditor, type EditorIssue, type Editor
 import { BusyOverlay, Confirm, LeaveGuard, TopBar, Spinner } from '../components/ui'
 import { useApp } from '../lib/app'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
-import { clearDraft, hasText, loadPhotos, loadText, savePhotos, saveText } from '../lib/uploadDraft'
+import { clearDraft, hasText, LEAVE_UPLOAD_TEXT, loadText, purgeOldPhotoDraft, saveText } from '../lib/uploadDraft'
 import { compressImage, compressProblem, CompressError, mb1, precheckPhoto, PROBLEM_TEXT, type PhotoProblem } from '../lib/compress'
 import { fieldIssueOf, metaErrors, rawIndexOf } from '../lib/editPatch'
 import { cx, photoIndexOf, tooLargeText } from '../lib/util'
@@ -61,38 +61,25 @@ export function UploadPage() {
 
   useEffect(() => () => photos.forEach((p) => URL.revokeObjectURL(p.url)), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // —— 本地草稿：打开时恢复，改动时自动存 ——
+  // —— 本地草稿（v2.4.6 §12-33 第 2 条）：只恢复文字，照片不暂存；7 天过期；旧版存在 IndexedDB 的照片一并删掉 ——
   const [restored, setRestored] = useState(false)
   useEffect(() => {
-    let alive = true
-    ;(async () => {
-      const t = loadText()
-      const files = await loadPhotos()
-      if (!alive) return
-      if (hasText(t) && t) {
-        setBasics({ name: t.name, category: t.category, note: t.note })
-        setMode(t.mode)
-        setContent(t.content)
-        setEditorMode(t.editorMode)
-      }
-      if (files.length) setPhotos(files.map((f, i) => ({ key: `r-${i}-${f.name}`, url: URL.createObjectURL(f), file: f, name: f.name, size: f.size })))
-      if (hasText(t) || files.length) app.toast('已恢复上次没传完的内容', 'info')
-      else if (presetCategory) setBasics((b) => ({ ...b, category: presetCategory }))
-      setRestored(true)
-    })()
-    return () => {
-      alive = false
-    }
+    purgeOldPhotoDraft()
+    const t = loadText()
+    if (hasText(t) && t) {
+      setBasics({ name: t.name, category: t.category, note: t.note })
+      setMode(t.mode)
+      setContent(t.content)
+      setEditorMode(t.editorMode)
+      app.toast('已恢复上次填的文字，照片要重新选', 'info')
+    } else if (presetCategory) setBasics((b) => ({ ...b, category: presetCategory }))
+    setRestored(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!restored || done) return
     const t = setTimeout(() => saveText({ ...basics, mode, editorMode, content }), 300)
     return () => clearTimeout(t)
   }, [basics, mode, editorMode, content, restored, done])
-  useEffect(() => {
-    // 只存压缩好的合格照片（不合格的、还没压完的不进本机草稿）
-    if (restored && !done && !photos.some((p) => p.status)) savePhotos(photos.filter((p) => !p.problem).map((p) => p.file))
-  }, [photos, restored, done])
   const [askClear, setAskClear] = useState(false)
   const clearAll = async () => {
     photos.forEach((p) => p.url && URL.revokeObjectURL(p.url))
@@ -435,7 +422,7 @@ export function UploadPage() {
         </div>
       </form>
       <BusyOverlay show={busy} text={effMode === CREATE_MODE.chef ? '正在把菜送进后厨…' : '正在上菜…'} />
-      <LeaveGuard blocker={blocker} title="这道菜还没上传，要离开吗？" body="填好的内容会先存在本机，下次打开上传页还在。" okText="先离开" />
+      <LeaveGuard blocker={blocker} title="这道菜还没上传，要离开吗？" body={LEAVE_UPLOAD_TEXT} okText="先离开" />
       <Confirm
         open={askClear}
         title="清空这次填的内容？"
