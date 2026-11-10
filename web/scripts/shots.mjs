@@ -125,6 +125,10 @@ const shotsR2 = [
   ['设置-容量-正常', '/kitchen/settings', M, { used: 0.3 * 996147200 }, false],
   ['设置-容量-80', '/kitchen/settings', M, { used: 0.86 * 996147200, ops: 850 }, true],
   ['设置-容量-95', '/kitchen/settings', M, { used: 0.96 * 996147200 }, true],
+  // 验收 R1-03 / v2.4.6 §12-33 第 1 条：已用 MB 1 位小数、95% 红条显示实际 N%、剩余 < 512,000 字节改“满啦”
+  ['设置-用量提醒', '/kitchen/settings', M, { used: 0.86 * 996147200, ops: 850 }, true],
+  ['设置-容量-99', '/kitchen/settings', M, { used: 996147200 - 512000 }, true],
+  ['设置-容量-满', '/kitchen/settings', M, { used: 996147200 - 100000 }, true],
   ['改色-详情-空草稿红标签', '/dishes/seed-bfast', M, {}, false],
   ['改色-上传-413照片红条', '/kitchen/upload', M, {}, false, async (p) => {
     await fillUpload(p, '超大番茄炒蛋')
