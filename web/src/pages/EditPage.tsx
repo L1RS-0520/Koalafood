@@ -184,6 +184,11 @@ export function EditPage() {
       app.toast('还有必填项没填好', 'err')
       return
     }
+    // 没有打开时的原值就没法 diff：拦住，不能退回全量发送（全量会把厨驼菜谱改成手写并作废任务）
+    if (!confirmMode && !orig) {
+      app.toast('这道菜还没加载完，稍等一下再保存', 'err')
+      return
+    }
     const metaErr = metaErrors(content)
     if (metaErr.length) {
       app.toast(metaErr[0], 'err')
@@ -197,7 +202,7 @@ export function EditPage() {
         app.toast(CONFIRMED_TEXT, 'ok')
       } else {
         // 只发真正改过的字段（后端审查 P1-1）：只改菜名/分类/备注时不带内容键，来源和厨驼任务都不变
-        const patch = orig ? diffPatch(orig, basics, content) : { name: basics.name.trim(), category: basics.category, note: basics.note.trim() || null, ...c }
+        const patch = diffPatch(orig!, basics, content)
         if (Object.keys(patch).length) await api.updateDish(dish.id, patch)
         app.toast(Object.keys(patch).length ? '保存好啦' : '没有改动', 'ok')
       }
