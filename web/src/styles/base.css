@@ -80,13 +80,13 @@ legend {
   display: none !important;
 }
 :focus-visible {
-  outline: 3px solid var(--link);
+  outline: 2px solid var(--ink);
   outline-offset: 3px;
-  border-radius: 6px;
+  border-radius: 4px;
 }
 ::selection {
-  background: var(--accent);
-  color: var(--ink);
+  background: var(--ink);
+  color: var(--on-primary);
 }
 
 #root {

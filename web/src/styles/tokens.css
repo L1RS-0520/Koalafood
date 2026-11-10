@@ -1,53 +1,60 @@
 /*
- * 考拉食堂 · 设计变量（来源：设计/2026-11-09-第一版-配色字体卡片.md）
+ * 考拉食堂 · 设计变量（来源：设计/2026-11-10-A定稿-前端规范.md）
  * 设计稿更新时只改这里。
  */
 :root {
-  /* —— 品牌色 —— */
-  --primary: #ff7a2f; /* 番茄橙：主按钮、选中态（橙底只配墨黑字） */
-  --primary-dark: #e05a12; /* 按下态 */
-  --link: #a8380a; /* 全站链接色 + 80% 提示小字（设计 2026-11-10 定；白底 6.49:1、#FFE9A8 上 5.40:1） */
-  --secondary: #7cc6a4; /* 桉叶绿：次按钮、分类、标签 */
-  --secondary-dark: #4fa982;
-  --accent: #ffd23f; /* 蛋黄：高亮、徽章、时间图标 */
-  --blush: #ff9eb0; /* 腮红粉：甜品、少量点缀 */
+  /* —— 品牌色（A 日式四格）—— */
+  --ink: #1e1a18; /* 描边、标题、正文、选中下划线、主按钮底、Logo；纸上 16.04:1 */
+  --paper: #faf6f0; /* 页面底 */
+  --card: #fffcfa; /* 卡片、四格、主图底；墨字 16.90:1 */
+  --muted: #6b5e57; /* 次要文字最浅一档，不要再淡；纸上 5.80:1 */
+  --red: #c42b31; /* Logo 小印、错误、删除；纸上红字 5.22:1，白字压红底 5.62:1。不要把墨字压在红底上（3.07:1） */
 
-  /* —— 底色 / 文字 / 描边 —— */
-  --bg: #fff6e5;
-  --surface: #ffffff;
-  --text: #2b2321;
-  --text-2: #6b5e57;
-  --ink: #1e1a18;
+  /* 主色即墨色。旧番茄橙 #FF7A2F 不再做主色、选中底或投影。 */
+  --primary: var(--ink);
+  --primary-dark: #161311;
+  --on-primary: #ffffff; /* 白字压墨底 17.27:1 */
+  --link: var(--ink); /* 链接用墨字加下划线（偏移 3px），不再用链接橙 */
+  --secondary: var(--card);
+  --secondary-dark: var(--card);
+  --accent: var(--muted);
+  --blush: var(--muted);
+
+  /* —— 底色 / 文字 —— */
+  --bg: var(--paper);
+  --surface: var(--card);
+  --text: var(--ink);
+  --text-2: var(--muted);
   --koala: #a7a9b4;
-  --paper: #fffdf6; /* 便签纸 */
-  --cream-2: #fcebd0; /* 奶油深一档：分割、空格底 */
+  --cream-2: #efe8de; /* 分割、浅底，比次要字更深的纸色，不当文字色 */
 
   /* —— 功能色 —— */
-  --success: #3dbe7a;
-  --warning: #ffb020;
-  --danger: #e5484d; /* 描边、错误字、进度条红 */
+  --success: #2a7354; /* 纸上 5.30:1 */
+  --warning: #8a5600; /* 纸上 5.72:1 */
+  --danger: var(--red);
 
-  /* —— 红色按钮（设计走查 P1-3，码驼 11-10 批准）：只改这两个变量 —— */
-  --danger-btn-bg: #ee5a5f; /* 墨字 5.15:1；原来用 --danger #e5484d 只有 4.41:1 */
-  --danger-btn-fg: var(--ink);
+  /* 危险按钮：红底白字。不要用墨字压红底。 */
+  --danger-btn-bg: var(--red);
+  --danger-btn-fg: #ffffff;
 
-  /* —— 红底白字小标签（照片红条、空草稿标签、错误圆点；设计 2026-11-10 定）：只改这个变量 —— */
-  --danger-tag-bg: #c42b31;
+  /* 红底白字小标签（照片红条、错误标记） */
+  --danger-tag-bg: var(--red);
 
-  /* —— 设置页照片柜百分比文字色（设计走查 P1-4）：颜色只看后端 level —— */
+  /* —— 设置页照片柜百分比文字色：颜色只看后端 level —— */
+  /* 在 #FAF6F0 上：ok 4.65、warn 5.72、danger 6.07，都满 4.5 */
   --storage-pct-ok: #2f7d57;
   --storage-pct-warn: #8a5600;
   --storage-pct-danger: #b4232a;
 
-  /* —— 标签浅底 —— */
-  --tag-green: #e3f4ec;
-  --tag-orange: #ffe6d6;
-  --tag-yellow: #fff1b8;
-  --tag-pink: #ffe1e7;
-  --tag-gray: #eeeef2;
+  /* —— 标签浅底（上传/设置页少量功能标记仍可用，不当正文色）—— */
+  --tag-green: #efe8de;
+  --tag-orange: #efe8de;
+  --tag-yellow: #efe8de;
+  --tag-pink: #efe8de;
+  --tag-gray: #efe8de;
 
   /* —— 字体 —— */
-  /* 正文不打包字体，用系统中文黑体（走查 P2-17，码驼 11-10 定）；ZCOOL / Baloo 后面的回退也统一成这一串 */
+  /* 正文不打包字体，用系统中文黑体（走查 P2-17）；ZCOOL / Baloo 后面的回退也统一成这一串 */
   --font-display: 'ZCOOL KuaiLe', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   --font-body: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   --font-num: 'Baloo 2', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
@@ -59,14 +66,16 @@
   --lh-h2: 32px;
   --fs-h3: 20px;
   --lh-h3: 26px;
-  --fs-h3-sm: 18px; /* 卡片菜名 ZCOOL 18/24（设计 §3、走查 P2-1） */
+  --fs-h3-sm: 18px; /* 卡片菜名 ZCOOL 18/24 */
   --lh-h3-sm: 24px;
   --fs-body: 16px;
   --lh-body: 26px;
   --fs-bubble: 15px;
   --lh-bubble: 22px;
-  --fs-caption: 12px;
-  --lh-caption: 16px;
+  --fs-caption: 13px;
+  --lh-caption: 18px;
+  --fs-meta: 14px;
+  --fs-small: 12px;
 
   /* —— 间距（基数 4）—— */
   --sp-1: 4px;
@@ -76,31 +85,35 @@
   --sp-5: 24px;
   --sp-6: 32px;
   --page-x: 16px;
-  --grid-gap: 12px; /* 设计 §4 / card2.css：双列列距 12 */
+  --page-x-lg: 40px;
+  --grid-gap: 20px;
+  --content-max: 1080px;
+  --header-h: 56px;
 
-  /* —— 圆角 —— */
-  --r-card: 16px;
-  --r-btn: 14px;
-  --r-input: 12px;
-  --r-bubble: 16px;
+  /* —— 圆角：卡片 / 主图 8px，四格 4px。不要 16–20 的大圆角。 —— */
+  --r-card: 8px;
+  --r-cell: 4px;
+  --r-btn: 8px;
+  --r-input: 8px;
+  --r-bubble: 8px;
   --r-pill: 999px;
 
-  /* —— 描边 —— */
-  --line: 3px solid var(--ink);
-  --line-sm: 2px solid var(--ink);
-  --line-md: 2.5px solid var(--ink);
+  /* —— 描边：卡片 / 主图 / 四格 2px；顶栏底边和其他细线 1.5px —— */
+  --line-w: 2px;
+  --hair-w: 1.5px;
+  --line: var(--line-w) solid var(--ink);
+  --line-sm: var(--hair-w) solid var(--ink);
+  --line-md: var(--line-w) solid var(--ink);
 
-  /* —— 硬投影（不用模糊阴影）—— */
-  --shadow: 4px 4px 0 var(--ink);
-  --shadow-sm: 2px 2px 0 var(--ink);
-  --shadow-lg: 6px 6px 0 var(--ink);
-  --shadow-press: 1px 1px 0 var(--ink);
+  /* —— 不再使用硬投影和网点。变量留空，避免旧规则把投影夹带回来。 —— */
+  --shadow: none;
+  --shadow-sm: none;
+  --shadow-lg: none;
+  --shadow-press: none;
+  --dots: none;
+  --dots-size: 0;
 
-  /* —— 网点 —— */
-  --dots: radial-gradient(rgba(30, 26, 24, 0.13) 1.2px, transparent 1.4px);
-  --dots-size: 8px 8px;
-
-  /* —— 动效 —— */
+  /* —— 动效：按下用透明度或 1px 位移，不要靠投影收缩 —— */
   --t-press: 80ms;
   --t-fast: 160ms;
   --t-mid: 260ms;
@@ -115,4 +128,11 @@
   /* —— 触控 —— */
   --touch: 44px;
   --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+@media (min-width: 960px) {
+  :root {
+    --page-x: 40px;
+    --header-h: 64px;
+  }
 }

@@ -36,6 +36,7 @@
 }
 .btn--primary {
   --btn-bg: var(--primary);
+  color: var(--on-primary);
 }
 .btn--primary:active:not(:disabled) {
   --btn-bg: var(--primary-dark);
@@ -57,7 +58,7 @@
   --btn-bg: var(--surface);
 }
 .btn--danger-text {
-  color: #b4232a;
+  color: var(--red);
 }
 .btn--lg {
   min-height: 54px;
