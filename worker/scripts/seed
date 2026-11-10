@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""导入考拉食堂示例菜（可重复运行）。只用标准库；有 Pillow 时生成带菜名的彩色占位图。
+
+  ./scripts/seed            已存在同名菜就跳过，只补缺的
+  ./scripts/seed --reset    先删掉这几道示例菜（含照片），再重新导入
+  ./scripts/seed --base http://localhost:8787
+
+流程：POST /api/dev/login 拿模拟登录 cookie（需 .dev.vars 里 DEV_AUTH=1）→ POST /api/kitchen/dishes（mode=chef）。
+示例菜全部为 pending，留给厨驼写。
+"""
+import argparse, io, json, sys, uuid, urllib.request, urllib.error
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ASSETS = HERE.parent.parent.parent / "设计" / "素材"   # koala-canteen/设计/素材（可选）
+FONT = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
+
+# (菜名, 分类, 备注, 照片列表)；照片：素材文件名 或 ("占位", 颜色)
+SEED = [
+    ("番茄炒蛋", "家常菜", "少放糖", ["d-tomato.jpg", ("占位", "#E8553D"), ("占位", "#F4C542")]),
+    ("鱼香肉丝", "家常菜", None, [("占位", "#C0392B")]),
+    ("玉米排骨汤", "汤羹", None, ["d-soup.jpg"]),
+    ("蛋炒饭", "主食", None, [("占位", "#F2B134")]),
+    ("韭菜猪肉煎饺", "小吃点心", None, [("占位", "#6BAF5B")]),
+    ("芒果西米露", "甜品饮品", None, ["d-mango.jpg", ("占位", "#FFB547")]),
+    ("万能凉拌汁", "其他", None, [("占位", "#8E5B3C")]),
+]
+
+
+class Http:
+    def __init__(self, base):
+        self.base, self.cookie = base.rstrip("/"), None
+
+    def req(self, method, path, data=None, headers=None):
+        h = dict(headers or {})
+        if self.cookie:
+            h["Cookie"] = self.cookie
+        r = urllib.request.Request(self.base + path, data=data, method=method, headers=h)
+        try:
+            with urllib.request.urlopen(r, timeout=60) as resp:
+                sc = resp.headers.get("Set-Cookie")
+                if sc:
+                    self.cookie = sc.split(";", 1)[0]
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            sys.exit(f"{method} {path} 失败（{e.code}）：{e.read().decode('utf-8', 'replace')[:300]}")
+        except urllib.error.URLError as e:
+            sys.exit(f"连不上 {self.base}（{e.reason}），请先启动：cd app/worker && npm run dev")
+
+
+def placeholder(name, color, idx):
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        return None
+    img = Image.new("RGB", (800, 600), color)
+    d = ImageDraw.Draw(img)
+    for r in range(0, 900, 60):  # 漫画网点感的斜线
+        d.line([(r, 0), (r - 600, 600)], fill="#ffffff33", width=6)
+    d.rounded_rectangle([60, 180, 740, 420], radius=40, fill="white", outline="black", width=8)
+    try:
+        f = ImageFont.truetype(FONT, 88); f2 = ImageFont.truetype(FONT, 32)
+    except OSError:
+        f = f2 = ImageFont.load_default()
+    d.text((400, 290), name, font=f, fill="black", anchor="mm")
+    d.text((400, 470), f"考拉食堂 · 示例图 {idx}", font=f2, fill="white", anchor="mm")
+    buf = io.BytesIO(); img.save(buf, "JPEG", quality=85)
+    return buf.getvalue()
+
+
+def photo_bytes(name, spec, idx):
+    if isinstance(spec, str):
+        p = ASSETS / spec
+        if p.exists():
+            return p.read_bytes()
+        spec = ("占位", "#999999")
+    data = placeholder(name, spec[1], idx)
+    if data is None:  # 没有 Pillow：退回素材里的随便一张
+        fallback = next(iter(sorted(ASSETS.glob("d-*.jpg"))), None) if ASSETS.exists() else None
+        if not fallback:
+            sys.exit("没有 Pillow 也找不到 设计/素材 里的图片，无法生成占位图：pip install pillow")
+        data = fallback.read_bytes()
+    return data
+
+
+def multipart(fields, files):
+    b = "----koala" + uuid.uuid4().hex
+    out = io.BytesIO()
+    for k, v in fields.items():
+        out.write(f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode())
+    for k, fname, data in files:
+        out.write(f'--{b}\r\nContent-Disposition: form-data; name="{k}"; filename="{fname}"\r\n'
+                  f"Content-Type: image/jpeg\r\n\r\n".encode())
+        out.write(data); out.write(b"\r\n")
+    out.write(f"--{b}--\r\n".encode())
+    return out.getvalue(), f"multipart/form-data; boundary={b}"
+
+
+def main():
+    ap = argparse.ArgumentParser(description="导入考拉食堂示例菜")
+    ap.add_argument("--base", default="http://localhost:8787")
+    ap.add_argument("--reset", action="store_true", help="先删除同名示例菜再导入")
+    a = ap.parse_args()
+    http = Http(a.base)
+    http.req("POST", "/api/dev/login")
+    if not http.cookie:
+        sys.exit("dev/login 没返回 cookie，请确认 worker/.dev.vars 里有 DEV_AUTH=1 并重启 wrangler dev")
+    existing = {d["name"]: d for d in http.req("GET", "/api/dishes")["dishes"]}
+    names = {s[0] for s in SEED}
+    if a.reset:
+        for n, d in existing.items():
+            if n in names:
+                http.req("DELETE", f"/api/kitchen/dishes/{d['id']}")
+                print(f"已删除旧示例：{n}（{d['id']}）")
+        existing = {}
+    for name, cat, note, photos in SEED:
+        if name in existing:
+            print(f"跳过（已存在）：{name}  {existing[name]['id']}  {existing[name]['chef_status']}")
+            continue
+        fields = {"name": name, "category": cat, "mode": "chef"}
+        if note:
+            fields["note"] = note
+        files = [("photos", f"{i}.jpg", photo_bytes(name, s, i)) for i, s in enumerate(photos, 1)]
+        body, ctype = multipart(fields, files)
+        d = http.req("POST", "/api/kitchen/dishes", body, {"Content-Type": ctype})
+        print(f"已导入：{name}  {d['id']}  [{cat}]  照片 {len(d['photos'])} 张  {d['chef_status']}")
+    h = http.req("GET", "/api/health")
+    print(f"完成。当前待厨驼写的菜：{h['chef_pending']} 道")
+
+
+if __name__ == "__main__":
+    main()

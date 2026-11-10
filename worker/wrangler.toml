@@ -1,0 +1,37 @@
+# 考拉食堂 Worker 配置
+# 注意：database_id / bucket 仅用于本地模拟（wrangler dev 默认 --local，数据在 .wrangler/state）。
+# 上线前需大王审批后再创建真实 D1/R2 并替换 database_id，见 ../../待大王审批.md。
+name = "koala-canteen"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "koala-canteen"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "koala-canteen-photos"
+
+[vars]
+# 厨驼领取后多久没交稿可被重新领取（分钟）
+CHEF_CLAIM_TTL_MIN = "30"
+# 密钥 CHEF_KEY 不写在这里：本地放 worker/.dev.vars（已 gitignore），线上用 wrangler secret（待大王审批）
+# 联调模式：1=菜品 pending 满 20 秒自动出示例草稿（读列表/详情/health/任务列表时惰性触发）。默认关，免得把留给厨驼的菜写掉
+CHEF_MOCK = "0"
+# 登录（v2.3）：/api/kitchen/* 写接口需登录。
+#  - 配了 ACCESS_TEAM_DOMAIN + ACCESS_AUD → 校验 Cf-Access-Jwt-Assertion（JWKS 验签，线上用）
+#  - 否则 DEV_AUTH=1（放 .dev.vars）→ 本地模拟登录 /api/dev/login
+#  - 都没配 → kitchen 一律 401
+# Access 团队域名（如 xxx.cloudflareaccess.com）和应用 AUD，上线时由大王审批后填写
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""
