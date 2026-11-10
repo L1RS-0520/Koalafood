@@ -1,0 +1,107 @@
+/*
+ * 考拉食堂 · 设计变量（来源：设计/2026-11-09-第一版-配色字体卡片.md）
+ * 设计稿更新时只改这里。
+ */
+:root {
+  /* —— 品牌色 —— */
+  --primary: #ff7a2f; /* 番茄橙：主按钮、选中态（橙底只配墨黑字） */
+  --primary-dark: #e05a12; /* 按下态 */
+  --link: #c2410c; /* 白底链接文字 */
+  --secondary: #7cc6a4; /* 桉叶绿：次按钮、分类、标签 */
+  --secondary-dark: #4fa982;
+  --accent: #ffd23f; /* 蛋黄：高亮、徽章、时间图标 */
+  --blush: #ff9eb0; /* 腮红粉：甜品、少量点缀 */
+
+  /* —— 底色 / 文字 / 描边 —— */
+  --bg: #fff6e5;
+  --surface: #ffffff;
+  --text: #2b2321;
+  --text-2: #6b5e57;
+  --ink: #1e1a18;
+  --koala: #a7a9b4;
+  --paper: #fffdf6; /* 便签纸 */
+  --cream-2: #fcebd0; /* 奶油深一档：分割、空格底 */
+
+  /* —— 功能色 —— */
+  --success: #3dbe7a;
+  --warning: #ffb020;
+  --danger: #e5484d;
+
+  /* —— 标签浅底 —— */
+  --tag-green: #e3f4ec;
+  --tag-orange: #ffe6d6;
+  --tag-yellow: #fff1b8;
+  --tag-pink: #ffe1e7;
+  --tag-gray: #eeeef2;
+
+  /* —— 字体 —— */
+  --font-display: 'ZCOOL KuaiLe', 'Noto Sans SC', 'Noto Sans CJK SC', 'PingFang SC', sans-serif;
+  --font-body: 'Noto Sans SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', system-ui, sans-serif;
+  --font-latin: 'Bangers', 'ZCOOL KuaiLe', sans-serif; /* 只用于英文拟声词 */
+  --font-num: 'Baloo 2', 'Noto Sans SC', 'Noto Sans CJK SC', sans-serif;
+
+  /* —— 字号阶梯（字号 / 行高）—— */
+  --fs-h1: 32px;
+  --lh-h1: 40px;
+  --fs-h2: 24px;
+  --lh-h2: 32px;
+  --fs-h3: 20px;
+  --lh-h3: 26px;
+  --fs-h3-sm: 17px;
+  --lh-h3-sm: 22px;
+  --fs-body: 16px;
+  --lh-body: 26px;
+  --fs-bubble: 15px;
+  --lh-bubble: 22px;
+  --fs-caption: 12px;
+  --lh-caption: 16px;
+
+  /* —— 间距（基数 4）—— */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --page-x: 16px;
+  --grid-gap: 14px;
+
+  /* —— 圆角 —— */
+  --r-card: 16px;
+  --r-btn: 14px;
+  --r-input: 12px;
+  --r-bubble: 16px;
+  --r-pill: 999px;
+
+  /* —— 描边 —— */
+  --line: 3px solid var(--ink);
+  --line-sm: 2px solid var(--ink);
+  --line-md: 2.5px solid var(--ink);
+
+  /* —— 硬投影（不用模糊阴影）—— */
+  --shadow: 4px 4px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+  --shadow-lg: 6px 6px 0 var(--ink);
+  --shadow-press: 1px 1px 0 var(--ink);
+
+  /* —— 网点 —— */
+  --dots: radial-gradient(rgba(30, 26, 24, 0.13) 1.2px, transparent 1.4px);
+  --dots-size: 8px 8px;
+
+  /* —— 动效 —— */
+  --t-press: 80ms;
+  --t-fast: 160ms;
+  --t-mid: 260ms;
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* —— 层级 —— */
+  --z-sticky: 20;
+  --z-fab: 30;
+  --z-toast: 60;
+  --z-modal: 50;
+
+  /* —— 触控 —— */
+  --touch: 44px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}

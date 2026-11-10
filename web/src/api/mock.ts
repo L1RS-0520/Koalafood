@@ -1,0 +1,359 @@
+// 浏览器内置 mock 后端（VITE_MOCK=1）：字段、路径语义与 docs/接口约定.md v2.3 一致，数据存 localStorage，刷新不丢。
+// 模拟规则：pending 满 20 秒自动出示例草稿；菜名含「失败」则出带 chef_message 的空草稿；菜名含「塞满」上传返回 429 STORAGE_QUOTA；
+// 开发开关（localStorage）：koala-canteen:mock:can_edit = "0" 切访客视角；koala-canteen:mock:chef-delay 改出稿秒数（毫秒）。
+import { CHEF_STATUS, LIMITS } from './contract'
+import { mockDraft } from './mockChef'
+import { makeSeed, SEED_PHOTOS, type MockDish, type MockPhoto } from './mockSeed'
+import { normDish, normSummary } from './normalize'
+import { ApiError, CATEGORIES, type Api, type Dish, type DishSummary, type RecipeContent } from './types'
+
+const KEY = 'koala-canteen:mock:v3'
+const CAN_EDIT_KEY = 'koala-canteen:mock:can_edit'
+const DELAY_KEY = 'koala-canteen:mock:chef-delay'
+
+interface Store {
+  dishes: MockDish[]
+  settings: { chef_enabled: boolean }
+}
+
+function load(): Store {
+  try {
+    const raw = localStorage.getItem(KEY)
+    if (raw) return JSON.parse(raw) as Store
+  } catch {
+    /* 坏数据就重置 */
+  }
+  const s: Store = { dishes: makeSeed(), settings: { chef_enabled: true } }
+  save(s)
+  return s
+}
+function save(s: Store) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(s))
+  } catch {
+    throw new ApiError('TOO_LARGE', '浏览器本地空间满了（mock 模式照片存在本地），删几道菜再试', 413)
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const lag = () => sleep(180 + Math.random() * 220)
+const now = () => new Date().toISOString()
+const uid = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `m-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const canEdit = () => localStorage.getItem(CAN_EDIT_KEY) !== '0'
+const chefDelay = () => Number(localStorage.getItem(DELAY_KEY)) || 20_000
+
+const photoUrl = (p: MockPhoto) => (p.ref.startsWith('seed:') ? (SEED_PHOTOS[p.ref.slice(5)] ?? '') : p.ref)
+
+/** 模拟厨驼：pending 满 20 秒交稿 */
+function tickChef(s: Store): boolean {
+  if (!s.settings.chef_enabled) return false
+  let changed = false
+  for (const d of s.dishes) {
+    if (d.chef_status !== CHEF_STATUS.pending || !d.chef_requested_at) continue
+    if (Date.now() - Date.parse(d.chef_requested_at) < chefDelay()) continue
+    d.draft = mockDraft(d.name, d.category, d.note ?? '', d.requested_note)
+    d.chef_status = CHEF_STATUS.draft
+    d.updated_at = now()
+    changed = true
+  }
+  if (changed) save(s)
+  return changed
+}
+
+function toDish(d: MockDish): Dish {
+  const photos = d.photos.map((p) => ({ id: p.id, url: photoUrl(p) }))
+  const visible = canEdit()
+  return normDish({
+    ...d,
+    photos,
+    photo_url: photos[0]?.url ?? '',
+    // v2.3 隐私：未登录不返回 draft / requested_note
+    draft: visible ? d.draft : null,
+    requested_note: visible ? d.requested_note : null,
+    chef_message: visible ? (d.draft?.chef_message ?? null) : null,
+  })
+}
+function toSummary(d: MockDish): DishSummary {
+  return normSummary({ ...d, photo_url: d.photos[0] ? photoUrl(d.photos[0]) : '', photo_count: d.photos.length })
+}
+
+function find(s: Store, id: string): MockDish {
+  const d = s.dishes.find((x) => x.id === id)
+  if (!d) throw new ApiError('NOT_FOUND', '这道菜找不到了，可能已经被删掉', 404)
+  return d
+}
+function requireLogin() {
+  if (!canEdit()) throw new ApiError('UNAUTHORIZED', '这里是后厨，大王登录后才能操作', 401)
+}
+function requireChef(s: Store) {
+  if (!s.settings.chef_enabled) throw new ApiError('CHEF_DISABLED', '找厨驼写已经关掉了，可以在设置里打开', 403)
+}
+
+function checkPhotos(files: File[], existing = 0) {
+  if (files.length + existing < 1) throw new ApiError('VALIDATION', '至少要有 1 张照片', 400)
+  if (files.length + existing > LIMITS.photosMax) throw new ApiError('VALIDATION', `最多 ${LIMITS.photosMax} 张照片`, 400)
+  for (const f of files) {
+    if (!(LIMITS.photoTypes as readonly string[]).includes(f.type))
+      throw new ApiError('BAD_TYPE', '只支持 jpg、png、webp 格式的照片', 415)
+    if (f.size > LIMITS.uploadMaxBytes) throw new ApiError('TOO_LARGE', '照片太大啦，单张不能超过 1MB', 413)
+  }
+}
+
+/** mock 里把照片压成 ≤1024px 的 JPEG dataURL 存 localStorage */
+async function compress(file: File): Promise<string> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    img.src = url
+    await img.decode()
+    const scale = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight))
+    const c = document.createElement('canvas')
+    c.width = Math.round(img.naturalWidth * scale)
+    c.height = Math.round(img.naturalHeight * scale)
+    c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+    return c.toDataURL('image/jpeg', 0.82)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+function validateText(name: string, category: string, note?: string | null) {
+  if (!name.trim()) throw new ApiError('VALIDATION', '菜名不能为空', 400)
+  if ([...name.trim()].length > LIMITS.nameMax) throw new ApiError('VALIDATION', `菜名最多 ${LIMITS.nameMax} 个字`, 400)
+  if (!(CATEGORIES as readonly string[]).includes(category)) throw new ApiError('VALIDATION', '请选择分类', 400)
+  if (note && [...note].length > LIMITS.noteMax) throw new ApiError('VALIDATION', `备注最多 ${LIMITS.noteMax} 个字`, 400)
+}
+
+const emptyContent = (): RecipeContent => ({ ingredients: [], steps: [], tips: [], servings: null, total_time: null })
+
+export const mockApi: Api = {
+  async health() {
+    await lag()
+    const s = load()
+    tickChef(s)
+    return {
+      ok: true,
+      mock: true,
+      chef_enabled: s.settings.chef_enabled,
+      chef_pending: s.dishes.filter((d) => d.chef_status === CHEF_STATUS.pending).length,
+    }
+  },
+
+  async me() {
+    await lag()
+    const v = canEdit()
+    return { logged_in: v, can_edit: v, email: v ? 'dawang@koala.local' : null }
+  },
+
+  async devLogin() {
+    await lag()
+    localStorage.setItem(CAN_EDIT_KEY, '1')
+    return true
+  },
+  async devLogout() {
+    await lag()
+    localStorage.setItem(CAN_EDIT_KEY, '0')
+    return true
+  },
+
+  async listDishes(category) {
+    await lag()
+    const s = load()
+    tickChef(s)
+    return s.dishes
+      .filter((d) => !category || category === '全部' || d.category === category)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .map(toSummary)
+  },
+
+  async getDish(id) {
+    await lag()
+    const s = load()
+    tickChef(s)
+    return toDish(find(s, id))
+  },
+
+  async createDish(input) {
+    requireLogin()
+    const s = load()
+    validateText(input.name, input.category, input.note)
+    checkPhotos(input.photos)
+    if (input.mode === 'chef') requireChef(s)
+    // 模拟免费额度满（菜名含「塞满」）：429，菜不入库
+    if (input.name.includes('塞满')) {
+      await sleep(500)
+      throw new ApiError('STORAGE_QUOTA', 'storage quota exceeded', 429)
+    }
+    const refs = await Promise.all(input.photos.map(compress))
+    await sleep(700)
+    const t = now()
+    const content = input.mode === 'manual' ? (input.content ?? emptyContent()) : emptyContent()
+    const d: MockDish = {
+      id: uid(),
+      name: input.name.trim(),
+      category: input.category,
+      note: input.note?.trim() || null,
+      photos: refs.map((ref) => ({ id: uid(), ref })),
+      chef_status: input.mode === 'chef' ? CHEF_STATUS.pending : CHEF_STATUS.confirmed,
+      source: input.mode === 'chef' ? 'chef' : 'manual',
+      ...content,
+      draft: null,
+      requested_note: null,
+      chef_requested_at: input.mode === 'chef' ? t : null,
+      created_at: t,
+      updated_at: t,
+    }
+    s.dishes.unshift(d)
+    save(s)
+    return toDish(d)
+  },
+
+  async updateDish(id, patch) {
+    requireLogin()
+    await lag()
+    const s = load()
+    const d = find(s, id)
+    const name = patch.name ?? d.name
+    const category = patch.category ?? d.category
+    const note = patch.note === undefined ? d.note : patch.note
+    validateText(name, category, note)
+    Object.assign(d, {
+      name: name.trim(),
+      category,
+      note: note?.trim() || null,
+      ingredients: patch.ingredients ?? d.ingredients,
+      steps: patch.steps ?? d.steps,
+      tips: patch.tips ?? d.tips,
+      servings: patch.servings === undefined ? d.servings : patch.servings,
+      total_time: patch.total_time === undefined ? d.total_time : patch.total_time,
+    })
+    // 约定 v2.1：PATCH → confirmed + source=manual，并作废未处理的厨驼任务
+    d.chef_status = CHEF_STATUS.confirmed
+    d.source = 'manual'
+    d.draft = null
+    d.chef_requested_at = null
+    d.requested_note = null
+    d.updated_at = now()
+    save(s)
+    return toDish(d)
+  },
+
+  async addPhotos(id, files) {
+    requireLogin()
+    const s = load()
+    const d = find(s, id)
+    checkPhotos(files, d.photos.length)
+    const refs = await Promise.all(files.map(compress))
+    await lag()
+    d.photos.push(...refs.map((ref) => ({ id: uid(), ref })))
+    d.updated_at = now()
+    save(s)
+    return toDish(d)
+  },
+
+  async deletePhoto(id, photoId) {
+    requireLogin()
+    await lag()
+    const s = load()
+    const d = find(s, id)
+    if (d.photos.length <= 1) throw new ApiError('VALIDATION', '至少要留 1 张照片', 400)
+    d.photos = d.photos.filter((p) => p.id !== photoId)
+    d.updated_at = now()
+    save(s)
+    return toDish(d)
+  },
+
+  async reorderPhotos(id, ids) {
+    requireLogin()
+    await lag()
+    const s = load()
+    const d = find(s, id)
+    if (ids.length !== d.photos.length || !ids.every((x) => d.photos.some((p) => p.id === x)))
+      throw new ApiError('VALIDATION', '照片顺序和现有照片对不上，刷新一下再试', 400)
+    d.photos = ids.map((x) => d.photos.find((p) => p.id === x)!)
+    save(s)
+    return toDish(d)
+  },
+
+  async deleteDish(id) {
+    requireLogin()
+    await lag()
+    const s = load()
+    find(s, id)
+    s.dishes = s.dishes.filter((d) => d.id !== id)
+    save(s)
+  },
+
+  async askChef(id, note) {
+    requireLogin()
+    await lag()
+    const s = load()
+    requireChef(s)
+    const d = find(s, id)
+    d.chef_status = CHEF_STATUS.pending
+    d.draft = null
+    d.requested_note = note?.trim() || null
+    d.chef_requested_at = now()
+    d.updated_at = now()
+    save(s)
+    return toDish(d)
+  },
+
+  async confirmDraft(id, content) {
+    requireLogin()
+    await lag()
+    const s = load()
+    const d = find(s, id)
+    if (d.chef_status !== CHEF_STATUS.draft || !d.draft)
+      throw new ApiError('BAD_STATE', '这份草稿已经不在了（状态刚刚变了），已为你刷新', 409)
+    const c = content ?? d.draft
+    Object.assign(d, {
+      ingredients: c.ingredients,
+      steps: c.steps,
+      tips: c.tips,
+      servings: c.servings,
+      total_time: c.total_time,
+      chef_status: CHEF_STATUS.confirmed,
+      source: 'chef',
+      draft: null,
+      requested_note: null,
+      chef_requested_at: null,
+      updated_at: now(),
+    })
+    save(s)
+    return toDish(d)
+  },
+
+  async discardDraft(id) {
+    requireLogin()
+    await lag()
+    const s = load()
+    const d = find(s, id)
+    if (d.chef_status !== CHEF_STATUS.draft) throw new ApiError('BAD_STATE', '这份草稿已经不在了，已为你刷新', 409)
+    Object.assign(d, { chef_status: CHEF_STATUS.confirmed, draft: null, requested_note: null, chef_requested_at: null, updated_at: now() })
+    save(s)
+    return toDish(d)
+  },
+
+  async getSettings() {
+    await lag()
+    return { ...load().settings }
+  },
+
+  async updateSettings(st) {
+    requireLogin()
+    await lag()
+    const s = load()
+    s.settings.chef_enabled = st.chef_enabled
+    save(s)
+    return { ...s.settings }
+  },
+}
+
+/** 给开发/截图用：重置 mock 数据 */
+export function resetMock(empty = false) {
+  const s: Store = { dishes: empty ? [] : makeSeed(), settings: { chef_enabled: true } }
+  save(s)
+}

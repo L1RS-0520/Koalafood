@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <pattern id="d" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="2.4" fill="#F4B98F"/></pattern>
+  </defs>
+  <rect width="800" height="600" fill="#FFE6D6"/>
+  <rect width="800" height="600" fill="url(#d)" opacity=".7"/>
+  <g stroke="#1E1A18" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M330 120c-20 40 20 60 0 100M400 100c-20 40 20 60 0 100M470 120c-20 40 20 60 0 100" fill="none" stroke="#fff" stroke-width="10" opacity=".9"/>
+    <ellipse cx="400" cy="330" rx="270" ry="70" fill="#fff"/>
+    <path d="M130 330c0 150 120 220 270 220s270-70 270-220z" fill="#FF7A2F"/>
+    <path d="M190 420h420" stroke="#FFD23F" stroke-width="14"/>
+    <ellipse cx="400" cy="330" rx="240" ry="52" fill="#E8A54B"/>
+    <path d="M200 330c40-30 80 25 120-5s80 25 120-5 80 25 120-5 50 20 70 5" fill="none" stroke="#FFF1B8" stroke-width="12"/>
+    <path d="M220 350c40-30 80 25 120-5s80 25 120-5 80 25 120-5" fill="none" stroke="#FFF1B8" stroke-width="12"/>
+    <circle cx="330" cy="318" r="12" fill="#3DBE7A"/><circle cx="455" cy="340" r="12" fill="#3DBE7A"/><circle cx="520" cy="310" r="10" fill="#3DBE7A"/><circle cx="280" cy="345" r="9" fill="#3DBE7A"/>
+    <path d="M520 120l140 230M560 110l120 240" stroke="#8B5A2B" stroke-width="14"/>
+  </g>
+</svg>
