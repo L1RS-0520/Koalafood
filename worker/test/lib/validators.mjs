@@ -238,6 +238,10 @@ export function validateDish(d, opts = {}) {
     if (d.requested_note !== null) {
       errs.push('未登录时 requested_note 应为 null');
     }
+    // v2.3.3：chef_requested_at 对访客隐藏（与 draft 同口径：null）
+    if (d.chef_requested_at !== null) {
+      errs.push('未登录时 chef_requested_at 应为 null');
+    }
   } else if (d.chef_status === 'draft') {
     if (!isObj(d.draft)) {
       errs.push('draft 状态下 draft 应为对象');

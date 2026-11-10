@@ -83,7 +83,8 @@ ROUND2_BASE=http://127.0.0.1:8820 ROUND2_CLAIM_TTL_MIN=0.05 \
 ```
 
 - `ROUND2_CLAIM_TTL_MIN`：与实例的 `CHEF_CLAIM_TTL_MIN` 一致；不给则 TTL 用例 SKIP。
-- `ROUND2_RACE_TRIALS`：每个并发用例重复次数（默认 5；claim-race 至少 20）。
+- `ROUND2_RACE_TRIALS`：每个并发用例重复次数（默认 5；claim-race 每轮至少 20）。
+- `ROUND2_CLAIM_ROUNDS`：claim-race 轮数（默认 1；验收用 5 → 5×20 次，打印每轮双成功次数）。
 - `CHEF_KEY_FILE`：`.dev.vars` 路径（只读，默认 `worker/.dev.vars`；worktree 里
   没有时指向主仓库那份）。环境变量里只放路径，不放密钥。`api.test.mjs` 和密钥扫描
   也认这个变量（`lib/chefkey.mjs` 是唯一的读取实现）。
@@ -97,6 +98,11 @@ confirmed 409 / 已有草稿 409 / 一组格式错 400（步骤 2、13 步、用
 有离线单测）；未登录列表/详情不泄露草稿（每个字段带唯一 tag），列表 total_time
 只有 confirmed 才有值（src 没有该字段时 SKIP，泄露检查照跑）。
 
-**KNOWN_BUG**：已确认的真实缺陷登记在 `round2.test.mjs` 的 `KNOWN_BUGS`，复现时记
-WARN 并在末尾醒目汇总（`STRICT=1` 时算 FAIL）；修好后会提示删除登记。
-当前：`claim-race`——并发 claim 偶发两个都 200（检查与写入非原子）。
+**v2.3.3 追加**：claim-race 已修复，改为普通断言（恰好一个 200、另一个 409 CONFLICT）；
+新增 discard-draft vs ask-chef、confirm vs ask-chef、confirm vs discard-draft 并发用例；
+`chef_message` 给数字 → 400；`servings`/`total_time` 超 20 字（数字先补单位再量）在交稿、
+手写上传、PATCH、confirm 都 400；访客详情 `chef_requested_at` 为 null；列表/详情的
+`total_time` 只显示最近一次确认的值（重新找厨驼后仍是旧值，草稿值不出现）。
+
+**KNOWN_BUG**：已确认的真实缺陷可登记在 `round2.test.mjs` 的 `KNOWN_BUGS`，复现时记
+WARN 并在末尾醒目汇总（`STRICT=1` 时算 FAIL）。当前没有登记项。

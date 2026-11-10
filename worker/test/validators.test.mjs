@@ -326,18 +326,48 @@ export async function runOfflineTests(runner) {
     expectBad(R2.judgeDraftVsDiscard(res(409, 'BAD_STATE'), res(409, 'BAD_STATE'), 'DDD444', dish('pending')), '交稿应 200');
     expectBad(R2.judgeDraftVsDiscard(res(200), res(500, 'INTERNAL'), 'DDD444', dish('draft', D)), '200 或 409');
   });
-  await test('listTotalTimeIssues / leakedTags：只有 confirmed 可带 total_time', r2, () => {
+  await test('listTotalTimeIssues / leakedTags：列表只显示最近一次确认的 total_time', r2, () => {
     assert.ok(R2.listTotalTimeIssues({ chef_status: 'pending' }).absent);
-    const ok = R2.listTotalTimeIssues({ chef_status: 'confirmed', total_time: '20分钟' });
-    assert.deepEqual([ok.hard, ok.soft], [[], []]);
+    assert.deepEqual(R2.listTotalTimeIssues({ chef_status: 'confirmed', total_time: '20分钟' },
+      { formal: '20分钟' }).hard, []);
     assert.deepEqual(R2.listTotalTimeIssues({ chef_status: 'draft', total_time: null }).hard, []);
-    expectBad(R2.listTotalTimeIssues({ chef_status: 'draft', total_time: 'T9' }).hard, 'draft');
+    // 重新找厨驼后仍显示旧的正式值 → 合规
+    assert.deepEqual(R2.listTotalTimeIssues({ chef_status: 'draft', total_time: 'T1' },
+      { formal: 'T1' }).hard, []);
+    expectBad(R2.listTotalTimeIssues({ chef_status: 'draft', total_time: 'T9' }).hard, '最近一次确认');
+    expectBad(R2.listTotalTimeIssues({ chef_status: 'pending', total_time: 'T9' },
+      { formal: 'T1' }).hard, '最近一次确认');
+    expectBad(R2.listTotalTimeIssues({ chef_status: 'confirmed', total_time: null },
+      { formal: 'T1' }).hard, '最近一次确认');
     expectBad(R2.listTotalTimeIssues({ chef_status: 'confirmed', total_time: 5 }).hard, '字符串');
-    const old = R2.listTotalTimeIssues({ chef_status: 'pending', total_time: 'T1' }, { formal: 'T1' });
-    assert.deepEqual(old.hard, []);
-    assert.equal(old.soft.length, 1);
     assert.deepEqual(R2.leakedTags('{"a":"xAAA111"}', ['AAA111', 'BBB222']), ['AAA111']);
     assert.deepEqual(R2.leakedTags('{}', ['AAA111']), []);
+  });
+  await test('judgeDiscardVsAsk：两种串行都必须落在 pending 且保留 ask 的 note', r2, () => {
+    const pend = (note) => ({ ...dish('pending'), requested_note: note });
+    assert.deepEqual(R2.judgeDiscardVsAsk(res(200), res(200), 'n1', pend('n1')), []);
+    assert.deepEqual(R2.judgeDiscardVsAsk(res(409, 'BAD_STATE'), res(200), 'n1', pend('n1')), []);
+    expectBad(R2.judgeDiscardVsAsk(res(200), res(200), 'n1', dish('confirmed')), 'pending');
+    expectBad(R2.judgeDiscardVsAsk(res(200), res(200), 'n1', pend(null)), 'requested_note');
+    expectBad(R2.judgeDiscardVsAsk(res(409, 'CONFLICT'), res(200), 'n1', pend('n1')), 'discard');
+  });
+  await test('judgeConfirmVsAsk：confirm 200 → 正式=草稿；409 → 正式不变；最终都 pending', r2, () => {
+    const tt = { draftTT: 'Tnew', oldTT: null };
+    const pend = (t) => ({ ...dish('pending'), total_time: t });
+    assert.deepEqual(R2.judgeConfirmVsAsk(res(200), res(200), tt, pend('Tnew')), []);
+    assert.deepEqual(R2.judgeConfirmVsAsk(res(409, 'BAD_STATE'), res(200), tt, pend(null)), []);
+    expectBad(R2.judgeConfirmVsAsk(res(200), res(200), tt, { ...dish('confirmed'), total_time: 'Tnew' }), 'pending');
+    expectBad(R2.judgeConfirmVsAsk(res(200), res(200), tt, pend(null)), '草稿值');
+    expectBad(R2.judgeConfirmVsAsk(res(409, 'BAD_STATE'), res(200), tt, pend('Tnew')), '不变');
+  });
+  await test('judgeConfirmVsDiscard：恰好一个成功，正式内容跟赢家走', r2, () => {
+    const tt = { draftTT: 'Tnew', oldTT: null };
+    const conf = (t) => ({ ...dish('confirmed'), total_time: t });
+    assert.deepEqual(R2.judgeConfirmVsDiscard(res(200), res(409, 'BAD_STATE'), tt, conf('Tnew')), []);
+    assert.deepEqual(R2.judgeConfirmVsDiscard(res(409, 'BAD_STATE'), res(200), tt, conf(null)), []);
+    expectBad(R2.judgeConfirmVsDiscard(res(200), res(200), tt, conf('Tnew')), '恰好一个');
+    expectBad(R2.judgeConfirmVsDiscard(res(200), res(409, 'BAD_STATE'), tt, conf(null)), 'confirm 赢了');
+    expectBad(R2.judgeConfirmVsDiscard(res(409, 'BAD_STATE'), res(200), tt, conf('Tnew')), 'discard 赢了');
   });
   await test('stateConsistency：draft 必有草稿、非 draft 不得有、pending 要有请求时间', r2, () => {
     assert.deepEqual(R2.stateConsistency(dish('draft', {})), []);

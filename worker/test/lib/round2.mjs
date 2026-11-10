@@ -145,17 +145,65 @@ export function leakedTags(text, tags) {
   return tags.filter((t) => String(text).includes(t));
 }
 
-// 列表里 total_time 的口径：只有 confirmed 的菜可以带非空 total_time
-// formal: 该菜是否有过已确认的正式 total_time（re-ask 场景）
+// 列表里 total_time 的口径（v2.3.2/2.3.3 定案）：公开列表只显示「最近一次已确认」
+// 的正式值，与详情页同口径；pending/draft 的菜显示旧的正式值或 null，草稿值永不出现。
+// formal: 该菜最近一次已确认的 total_time（没有则 null）
 export function listTotalTimeIssues(item, { formal = null } = {}) {
-  const hard = [], soft = [];
-  if (!('total_time' in item)) return { absent: true, hard, soft };
+  const hard = [];
+  if (!('total_time' in item)) return { absent: true, hard };
   const v = item.total_time;
   if (v !== null && typeof v !== 'string') hard.push(`total_time 应为字符串或 null：${JSON.stringify(v)}`);
-  if (item.chef_status !== 'confirmed' && v != null) {
-    if (formal != null && v === formal) {
-      soft.push(`${item.chef_status} 的菜在列表里显示了旧的正式 total_time「${v}」（组长口径：只有 confirmed 才显示）`);
-    } else hard.push(`${item.chef_status} 的菜在列表里带了 total_time「${v}」`);
+  else if (v !== formal) {
+    hard.push(`${item.chef_status} 的菜列表 total_time=${JSON.stringify(v)}，应为最近一次确认的值 ${JSON.stringify(formal)}`);
   }
-  return { absent: false, hard, soft };
+  return { absent: false, hard };
+}
+
+// discard-draft vs ask-chef（起点 draft）。合法串行：
+//  A) discard → ask：两者 200，最终 pending
+//  B) ask → discard：discard 409 BAD_STATE，最终 pending
+// 两种结果最终都必须是 pending，且 requested_note 是这次 ask 的 note
+export function judgeDiscardVsAsk(rDiscard, rAsk, note, final) {
+  const errs = [];
+  if (st(rAsk) !== 200) errs.push(`ask-chef 应 200，实际 ${st(rAsk)} ${code(rAsk)}`);
+  if (!(st(rDiscard) === 200 || (st(rDiscard) === 409 && code(rDiscard) === 'BAD_STATE'))) {
+    errs.push(`discard 应 200 或 409 BAD_STATE，实际 ${st(rDiscard)} ${code(rDiscard)}`);
+  }
+  errs.push(...stateConsistency(final));
+  if (final?.chef_status !== 'pending') errs.push(`最终应为 pending（ask-chef 不能被覆盖），实际 ${final?.chef_status}`);
+  if (final?.requested_note !== note) errs.push(`requested_note 应为本次 ask 的 note，实际 ${JSON.stringify(final?.requested_note)}`);
+  return errs;
+}
+
+// confirm vs ask-chef（起点 draft，草稿 total_time=draftTT，旧正式值 oldTT）。合法串行：
+//  A) confirm → ask：两者 200，最终 pending，正式内容=草稿
+//  B) ask → confirm：confirm 409 BAD_STATE，最终 pending，正式内容不变
+export function judgeConfirmVsAsk(rConfirm, rAsk, { draftTT, oldTT }, final) {
+  const errs = [];
+  if (st(rAsk) !== 200) errs.push(`ask-chef 应 200，实际 ${st(rAsk)} ${code(rAsk)}`);
+  errs.push(...stateConsistency(final));
+  if (final?.chef_status !== 'pending') errs.push(`最终应为 pending，实际 ${final?.chef_status}`);
+  if (st(rConfirm) === 200) {
+    if (final?.total_time !== draftTT) errs.push(`confirm 200 后正式 total_time 应为草稿值 ${draftTT}，实际 ${final?.total_time}`);
+  } else if (st(rConfirm) === 409 && code(rConfirm) === 'BAD_STATE') {
+    if (final?.total_time !== oldTT) errs.push(`confirm 409 后正式 total_time 应不变（${oldTT}），实际 ${final?.total_time}`);
+  } else errs.push(`confirm 应 200 或 409 BAD_STATE，实际 ${st(rConfirm)} ${code(rConfirm)}`);
+  return errs;
+}
+
+// confirm vs discard-draft（起点 draft）：恰好一个 200，另一个 409 BAD_STATE；最终 confirmed，
+// 正式内容 = 草稿（confirm 赢）或旧值（discard 赢）
+export function judgeConfirmVsDiscard(rConfirm, rDiscard, { draftTT, oldTT }, final) {
+  const errs = [];
+  const okC = st(rConfirm) === 200, okD = st(rDiscard) === 200;
+  if (okC === okD) errs.push(`confirm / discard 应恰好一个成功，实际 ${st(rConfirm)} / ${st(rDiscard)}`);
+  const loser = okC ? rDiscard : rConfirm;
+  if (okC !== okD && !(st(loser) === 409 && code(loser) === 'BAD_STATE')) {
+    errs.push(`输的那个应为 409 BAD_STATE，实际 ${st(loser)} ${code(loser)}`);
+  }
+  errs.push(...stateConsistency(final));
+  if (final?.chef_status !== 'confirmed') errs.push(`最终应为 confirmed，实际 ${final?.chef_status}`);
+  if (okC && !okD && final?.total_time !== draftTT) errs.push(`confirm 赢了，正式 total_time 应为 ${draftTT}，实际 ${final?.total_time}`);
+  if (okD && !okC && final?.total_time !== oldTT) errs.push(`discard 赢了，正式 total_time 应不变（${oldTT}），实际 ${final?.total_time}`);
+  return errs;
 }

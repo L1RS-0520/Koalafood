@@ -142,7 +142,8 @@
       "label": "未登录视角：draft 状态但 draft=null",
       "anon": true,
       "patch": {
-        "chef_status": "draft"
+        "chef_status": "draft",
+        "chef_requested_at": null
       }
     },
     {
@@ -462,6 +463,15 @@
         "created_at": "2026-11-09 12:00"
       },
       "expect": "created_at"
+    },
+    {
+      "label": "未登录却返回 chef_requested_at（v2.3.3）",
+      "anon": true,
+      "patch": {
+        "chef_status": "pending",
+        "chef_requested_at": "2026-11-09T12:00:00Z"
+      },
+      "expect": "未登录时 chef_requested_at"
     }
   ],
   "summary": {
