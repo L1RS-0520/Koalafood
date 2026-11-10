@@ -25,7 +25,16 @@
   /* —— 功能色 —— */
   --success: #3dbe7a;
   --warning: #ffb020;
-  --danger: #e5484d;
+  --danger: #e5484d; /* 描边、错误字、进度条红 */
+
+  /* —— 红色按钮（设计走查 P1-3，码驼 11-10 批准）：只改这两个变量 —— */
+  --danger-btn-bg: #ee5a5f; /* 墨字 5.15:1；原来用 --danger #e5484d 只有 4.41:1 */
+  --danger-btn-fg: var(--ink);
+
+  /* —— 设置页照片柜百分比文字色（设计走查 P1-4）：颜色只看后端 level —— */
+  --storage-pct-ok: #2f7d57;
+  --storage-pct-warn: #8a5600;
+  --storage-pct-danger: #b4232a;
 
   /* —— 标签浅底 —— */
   --tag-green: #e3f4ec;

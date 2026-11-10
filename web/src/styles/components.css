@@ -50,8 +50,8 @@
   --btn-bg: var(--accent);
 }
 .btn--danger {
-  --btn-bg: var(--danger);
-  color: var(--ink);
+  --btn-bg: var(--danger-btn-bg);
+  color: var(--danger-btn-fg);
 }
 .btn--ghost {
   --btn-bg: var(--surface);
@@ -128,8 +128,8 @@
   opacity: 0.35;
 }
 .icon-btn--sm {
-  width: 40px;
-  height: 40px;
+  width: 44px; /* 设计走查 P1-2：原 40×40 */
+  height: 44px;
   border-width: 2px;
 }
 
@@ -1312,6 +1312,7 @@
   background: #fff;
 }
 .seg button {
+  position: relative;
   min-height: 38px;
   padding: 4px 12px;
   border-radius: var(--r-pill);
@@ -1319,6 +1320,12 @@
   font-weight: 700;
   color: var(--text-2);
   transition: background-color var(--t-fast);
+}
+.seg button::before {
+  /* 外观 38 高，借外框 3px 内边距把点击区补到 44（设计走查 P1-2） */
+  content: '';
+  position: absolute;
+  inset: -3px 0;
 }
 .seg button.on {
   background: var(--accent);

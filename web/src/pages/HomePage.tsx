@@ -156,16 +156,23 @@ export function HomePage() {
             }
           />
         ) : (
-          <StatePanel
-            pose="taste"
-            title={`「${category}」还没有菜`}
-            text="换个分类看看，或者给这里添一道。"
-            action={
-              <button type="button" className="btn btn--ghost" onClick={() => pick(ALL)}>
-                看全部菜品
-              </button>
-            }
-          />
+          // 分类空（设计 空状态.png ①②、§5.10，走查 P1-5）：访客没有上传权限，不提“添一道”、不放按钮；
+          // 大王给「＋ 上传新菜」，进上传页时预选当前分类
+          app.canEdit ? (
+            <StatePanel
+              pose="taste"
+              title={`${category}还没有菜`}
+              text="做了好吃的？拍张照传上来吧～"
+              action={
+                <Link className="btn btn--primary" to={`/kitchen/upload?category=${encodeURIComponent(category)}`}>
+                  <Icon name="plus" size={18} />
+                  上传新菜
+                </Link>
+              }
+            />
+          ) : (
+            <StatePanel pose="taste" title="这个分类还空着～" text={`考拉大王还没做过${category}，先去别的分类看看吧！`} />
+          )
         )
       ) : (
         <div className="grid">

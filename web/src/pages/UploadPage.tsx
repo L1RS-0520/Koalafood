@@ -1,7 +1,7 @@
 // P2 上传页（仅大王）：多图 + 菜名/分类/备注 + 写法「找厨驼写」(默认) /「自己写」
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { api, ApiError, CREATE_MODE, LIMITS, type CreateMode, type RecipeContent } from '../api'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { api, ApiError, CATEGORIES, CREATE_MODE, LIMITS, type CreateMode, type RecipeContent } from '../api'
 import { BasicFields, validateBasics, type BasicErrors, type Basics } from '../components/BasicFields'
 import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
@@ -24,6 +24,9 @@ export function UploadPage() {
   useTitle('上传新菜')
   const app = useApp()
   const nav = useNavigate()
+  // 从首页空分类点「上传新菜」进来时带 ?category=，预选这个分类（本机有没传完的内容时以恢复的为准）
+  const [params] = useSearchParams()
+  const presetCategory = (CATEGORIES as readonly string[]).includes(params.get('category') ?? '') ? params.get('category')! : ''
   const [photos, setPhotos] = useState<LocalPhoto[]>([])
   const [photoErr, setPhotoErr] = useState<string | null>(null)
   const [basics, setBasics] = useState<Basics>({ name: '', category: '', note: '' })
@@ -61,6 +64,7 @@ export function UploadPage() {
       }
       if (files.length) setPhotos(files.map((f, i) => ({ key: `r-${i}-${f.name}`, url: URL.createObjectURL(f), file: f })))
       if (hasText(t) || files.length) app.toast('已恢复上次没传完的内容', 'info')
+      else if (presetCategory) setBasics((b) => ({ ...b, category: presetCategory }))
       setRestored(true)
     })()
     return () => {

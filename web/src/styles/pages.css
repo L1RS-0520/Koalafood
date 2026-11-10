@@ -60,9 +60,10 @@
 }
 .login-pill::before,
 .king-pill::before {
+  /* 外观 32 高；inset 从内边距框算起，要加上 2px 边框：32 + 2×(2+4) = 44（设计走查 P1-2） */
   content: '';
   position: absolute;
-  inset: -6px -2px;
+  inset: -8px -2px;
 }
 .king-pill {
   background: var(--ink);
@@ -471,13 +472,14 @@
   line-height: 20px;
 }
 .photo-grip {
+  /* 设计走查 P1-2：44×44，紧贴在底部挪动按钮的 44 高点击区上方；序号角标不接收点击，让给把手 */
   position: absolute;
-  left: 2px;
-  bottom: 30px;
+  left: 0;
+  bottom: 44px;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   color: #fff;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
   cursor: grab;
@@ -526,11 +528,18 @@
   border-top: var(--line-sm);
 }
 .photo-tools button {
+  position: relative;
   display: grid;
   place-items: center;
-  min-width: 34px;
+  min-width: 44px;
   font-size: 12px;
   font-weight: 700;
+}
+.photo-tools button::before {
+  /* 工具条外观 30 高（按钮 28 + 上边框 2），点击区向上补 16 到 44（设计走查 P1-2） */
+  content: '';
+  position: absolute;
+  inset: -16px 0 0 0;
 }
 .photo-tools button:disabled {
   opacity: 0.25;
@@ -560,6 +569,7 @@
   font-weight: 700;
 }
 .photo-cam-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -570,6 +580,12 @@
   background: #fff;
   font-size: 13px;
   font-weight: 700;
+}
+.photo-cam-btn::before {
+  /* 外观 36 高；inset 从内边距框算起：36 + 2×(边框 2 + 2) = 44（设计走查 P1-2） */
+  content: '';
+  position: absolute;
+  inset: -6px -2px;
 }
 .photos.is-invalid .photo-add-btn {
   border-color: var(--danger);
@@ -691,7 +707,7 @@
   gap: 6px;
 }
 .input--sm {
-  min-height: 40px;
+  min-height: 44px; /* 设计走查 P1-2：输入框点击区 ≥44 */
   padding: 6px 8px;
   border-width: 2px;
   font-size: 15px;
@@ -1628,6 +1644,7 @@
 
 /* ========== 上传页：逐张校验 / 压缩（设计/2026-11-10-上传页-照片校验与压缩）========== */
 .photo-no {
+  pointer-events: none;
   position: absolute;
   left: 4px;
   top: 4px;
@@ -1751,13 +1768,13 @@
   font-family: var(--font-num);
   font-weight: 800;
   font-size: 14px;
-  color: var(--success);
+  color: var(--storage-pct-ok);
 }
 .storage-card--warn .storage-pct {
-  color: #b77400;
+  color: var(--storage-pct-warn);
 }
 .storage-card--danger .storage-pct {
-  color: var(--danger);
+  color: var(--storage-pct-danger);
 }
 .storage-card .storage-bar {
   margin-top: 10px;
