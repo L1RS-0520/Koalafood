@@ -74,6 +74,7 @@ export function PhotoManager({
   const album = useRef<HTMLInputElement>(null)
   const [drag, setDrag] = useState<{ from: number; over: number; dx: number; dy: number } | null>(null)
   const start = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const home = useRef<DOMRect | null>(null)
   const full = items.length >= LIMITS.photosMax
   const [askDel, setAskDel] = useState<number | null>(null)
 
@@ -88,12 +89,21 @@ export function PhotoManager({
     e.preventDefault()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     start.current = { x: e.clientX, y: e.clientY }
+    home.current = (e.currentTarget as HTMLElement).closest('[data-photo-idx]')?.getBoundingClientRect() ?? null
     setDrag({ from: i, over: i, dx: 0, dy: 0 })
   }
   const onMoveP = (e: React.PointerEvent) => {
     if (!drag) return
-    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-photo-idx]')
-    const over = el ? Number(el.dataset.photoIdx) : drag.over
+    // 验收 R1-02：被拖的那格跟着指针走、z-index 最高，elementFromPoint 永远先拿到它自己，目标格不高亮、放手不换位。
+    // 改用 elementsFromPoint，跳过被拖的那格，取它下面的格子
+    const el = document
+      .elementsFromPoint(e.clientX, e.clientY)
+      .map((n) => n.closest<HTMLElement>('[data-photo-idx]'))
+      .find((n) => n && Number(n.dataset.photoIdx) !== drag.from)
+    // 拖回原来那格的位置 = 不换（那里只有被拖的格子自己，找不到别的格）
+    const h = home.current
+    const atHome = !!h && e.clientX >= h.left && e.clientX <= h.right && e.clientY >= h.top && e.clientY <= h.bottom
+    const over = el ? Number(el.dataset.photoIdx) : atHome ? drag.from : drag.over
     setDrag({ ...drag, over, dx: e.clientX - start.current.x, dy: e.clientY - start.current.y })
   }
   const onUp = () => {
