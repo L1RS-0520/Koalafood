@@ -1,5 +1,5 @@
 // 菜谱编辑区：快速模式（一行一条的大文本框）/ 逐条模式（增删行、上下移动、火候时长对白）
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from 'react'
 import { LIMITS, splitIngredientLine, type Ingredient, type RecipeContent, type Step } from '../api'
 import type { IssueField } from '../lib/editPatch'
 import { cx } from '../lib/util'
@@ -29,6 +29,32 @@ function IssueNote({ issue }: { issue: EditorIssue }) {
     </p>
   )
 }
+
+/** P2-2：逐条编辑的步骤正文按内容长高。支持 field-sizing 的浏览器走 CSS，其余用 scrollHeight 兜底。 */
+function GrowTextarea({ className, onChange, value, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const sync = () => {
+    const el = ref.current
+    if (!el) return
+    if (typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content')) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
+  useLayoutEffect(sync, [value])
+  return (
+    <textarea
+      {...rest}
+      ref={ref}
+      className={cx('textarea textarea--grow', className)}
+      value={value}
+      onChange={(e) => {
+        onChange?.(e)
+        queueMicrotask(sync)
+      }}
+    />
+  )
+}
+
 
 const ingToText = (xs: Ingredient[]) => xs.map((i) => (i.amount ? `${i.name} ${i.amount}` : i.name)).join('\n')
 const stepToText = (xs: Step[]) => xs.map((s) => s.text).join('\n')
@@ -251,8 +277,7 @@ export function RecipeEditor({
                 </span>
                 <div className="row-main">
                   {bad('steps', i) && <IssueNote issue={issue!} />}
-                  <textarea
-                    className="textarea"
+                  <GrowTextarea
                     rows={2}
                     aria-label={`第 ${i + 1} 步内容`}
                     aria-invalid={bad('steps', i) || undefined}

@@ -1265,6 +1265,12 @@
   resize: vertical;
   min-height: 72px;
 }
+/* P2-2：逐条编辑步骤正文按内容长高；不支持 field-sizing 时由 GrowTextarea 用 scrollHeight 兜底 */
+.textarea--grow {
+  field-sizing: content;
+  resize: none;
+  overflow: hidden;
+}
 .textarea--lined {
   background-image: repeating-linear-gradient(transparent 0 33px, #f0e2c8 33px 34px);
   background-position: 0 8px;
