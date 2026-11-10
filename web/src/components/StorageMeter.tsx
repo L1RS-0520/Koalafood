@@ -65,7 +65,7 @@ export function StorageMeter({ s }: { s: Storage | null }) {
         <h2>
           <Icon name="photos" size={18} />
           照片柜
-          <span className="storage-pct">{c.percent.toFixed(c.percent % 1 ? 1 : 0)}%</span>
+          <span className="storage-pct">{c.percent.toFixed(1)}%</span>
         </h2>
         <div className="storage-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label="照片柜已用比例">
           <i style={{ width: `${pct}%` }} />
