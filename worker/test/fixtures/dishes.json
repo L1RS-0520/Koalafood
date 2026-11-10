@@ -1,0 +1,800 @@
+{
+  "base": {
+    "id": "0b8f4a52-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+    "name": "番茄炒蛋",
+    "category": "家常菜",
+    "note": null,
+    "photo_url": "/api/photos/abc.png",
+    "photos": [
+      {
+        "id": "p1",
+        "url": "/api/photos/abc.png"
+      },
+      {
+        "id": "p2",
+        "url": "/api/photos/def.jpg"
+      }
+    ],
+    "ingredients": [
+      {
+        "name": "鸡蛋",
+        "amount": "3个"
+      },
+      {
+        "name": "番茄",
+        "amount": "2个"
+      }
+    ],
+    "steps": [
+      {
+        "text": "第1份食材下锅，中火翻炒1分钟",
+        "heat": "中火",
+        "time": "1分钟",
+        "caption": "翻炒！"
+      },
+      {
+        "text": "第2份食材下锅，中火翻炒1分钟",
+        "heat": "中火",
+        "time": "1分钟",
+        "caption": "翻炒！"
+      },
+      {
+        "text": "第3份食材下锅，中火翻炒1分钟",
+        "heat": "中火",
+        "time": "1分钟",
+        "caption": "翻炒！"
+      }
+    ],
+    "tips": [],
+    "servings": null,
+    "total_time": "15分钟",
+    "source": "chef",
+    "chef_status": "confirmed",
+    "draft": null,
+    "requested_note": null,
+    "chef_requested_at": "2026-11-09T12:00:00Z",
+    "created_at": "2026-11-09T12:00:00.000Z",
+    "updated_at": "2026-11-09T12:00:00Z"
+  },
+  "good": [
+    {
+      "label": "confirmed 厨驼菜",
+      "patch": {}
+    },
+    {
+      "label": "pending 空内容",
+      "patch": {
+        "chef_status": "pending",
+        "ingredients": [],
+        "steps": [],
+        "requested_note": "少放辣"
+      }
+    },
+    {
+      "label": "draft 带草稿、正式内容为空",
+      "patch": {
+        "chef_status": "draft",
+        "ingredients": [],
+        "steps": [],
+        "draft": {
+          "ingredients": [
+            {
+              "name": "鸡蛋",
+              "amount": "3个"
+            },
+            {
+              "name": "番茄",
+              "amount": "2个"
+            }
+          ],
+          "steps": [
+            {
+              "text": "第1份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            },
+            {
+              "text": "第2份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            },
+            {
+              "text": "第3份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            }
+          ],
+          "tips": [],
+          "servings": null,
+          "total_time": null,
+          "chef_message": null
+        }
+      }
+    },
+    {
+      "label": "draft 只有 chef_message",
+      "patch": {
+        "chef_status": "draft",
+        "draft": {
+          "ingredients": [],
+          "steps": [],
+          "tips": [],
+          "servings": null,
+          "total_time": null,
+          "chef_message": "照片看不清"
+        }
+      }
+    },
+    {
+      "label": "手写全空",
+      "patch": {
+        "source": "manual",
+        "ingredients": [],
+        "steps": [],
+        "note": "随便炒的",
+        "chef_requested_at": null
+      }
+    },
+    {
+      "label": "未登录视角：draft 状态但 draft=null",
+      "anon": true,
+      "patch": {
+        "chef_status": "draft"
+      }
+    },
+    {
+      "label": "手写 amount 空串",
+      "patch": {
+        "source": "manual",
+        "ingredients": [
+          {
+            "name": "盐",
+            "amount": ""
+          }
+        ]
+      }
+    }
+  ],
+  "bad": [
+    {
+      "label": "id 不是 UUID",
+      "patch": {
+        "id": "123"
+      },
+      "expect": "id 不是 UUID"
+    },
+    {
+      "label": "分类不在固定列表",
+      "patch": {
+        "category": "火锅"
+      },
+      "expect": "category"
+    },
+    {
+      "label": "缺 draft 字段",
+      "del": "draft",
+      "expect": "缺字段 draft"
+    },
+    {
+      "label": "缺 requested_note",
+      "del": "requested_note",
+      "expect": "缺字段 requested_note"
+    },
+    {
+      "label": "photo_url 不对",
+      "patch": {
+        "photo_url": "https://x/y.png"
+      },
+      "expect": "photo_url"
+    },
+    {
+      "label": "tips 不是数组",
+      "patch": {
+        "tips": null
+      },
+      "expect": "tips"
+    },
+    {
+      "label": "旧状态 done",
+      "patch": {
+        "chef_status": "done"
+      },
+      "expect": "chef_status 非法"
+    },
+    {
+      "label": "旧状态 none",
+      "patch": {
+        "chef_status": "none"
+      },
+      "expect": "chef_status 非法"
+    },
+    {
+      "label": "source 旧值 ai",
+      "patch": {
+        "source": "ai"
+      },
+      "expect": "source 非法"
+    },
+    {
+      "label": "confirmed 却有 draft",
+      "patch": {
+        "draft": {
+          "ingredients": [
+            {
+              "name": "鸡蛋",
+              "amount": "3个"
+            },
+            {
+              "name": "番茄",
+              "amount": "2个"
+            }
+          ],
+          "steps": [
+            {
+              "text": "第1份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            },
+            {
+              "text": "第2份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            },
+            {
+              "text": "第3份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            }
+          ],
+          "tips": [],
+          "servings": null,
+          "total_time": null,
+          "chef_message": null
+        }
+      },
+      "expect": "状态下 draft 应为空"
+    },
+    {
+      "label": "draft 状态没有 draft",
+      "patch": {
+        "chef_status": "draft"
+      },
+      "expect": "draft 状态下 draft 应为对象"
+    },
+    {
+      "label": "未登录却返回 draft",
+      "anon": true,
+      "patch": {
+        "chef_status": "draft",
+        "draft": {
+          "ingredients": [
+            {
+              "name": "鸡蛋",
+              "amount": "3个"
+            },
+            {
+              "name": "番茄",
+              "amount": "2个"
+            }
+          ],
+          "steps": [
+            {
+              "text": "第1份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            },
+            {
+              "text": "第2份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            },
+            {
+              "text": "第3份食材下锅，中火翻炒1分钟",
+              "heat": "中火",
+              "time": "1分钟",
+              "caption": "翻炒！"
+            }
+          ],
+          "tips": [],
+          "servings": null,
+          "total_time": null,
+          "chef_message": null
+        }
+      },
+      "expect": "未登录时 draft"
+    },
+    {
+      "label": "未登录却返回 requested_note",
+      "anon": true,
+      "patch": {
+        "requested_note": "加土豆"
+      },
+      "expect": "未登录时 requested_note"
+    },
+    {
+      "label": "draft 里步骤缺 text",
+      "patch": {
+        "chef_status": "draft",
+        "draft": {
+          "ingredients": [
+            {
+              "name": "鸡蛋",
+              "amount": "3个"
+            },
+            {
+              "name": "番茄",
+              "amount": "2个"
+            }
+          ],
+          "steps": [
+            {
+              "heat": "",
+              "time": "",
+              "caption": ""
+            }
+          ],
+          "tips": [],
+          "servings": null,
+          "total_time": null,
+          "chef_message": null
+        }
+      },
+      "expect": "draft.steps[0].text"
+    },
+    {
+      "label": "食材缺 name",
+      "patch": {
+        "ingredients": [
+          {
+            "amount": "1"
+          }
+        ]
+      },
+      "expect": "ingredients[0].name"
+    },
+    {
+      "label": "步骤缺 heat 字段",
+      "patch": {
+        "steps": [
+          {
+            "text": "炒",
+            "time": "",
+            "caption": ""
+          }
+        ]
+      },
+      "expect": "steps[0].heat 缺失"
+    },
+    {
+      "label": "缺 photos",
+      "del": "photos",
+      "expect": "缺字段 photos"
+    },
+    {
+      "label": "photos 为空",
+      "patch": {
+        "photos": []
+      },
+      "expect": "photos 数量 0"
+    },
+    {
+      "label": "photos 10 张",
+      "patch": {
+        "photos": [
+          {
+            "id": "p0",
+            "url": "/api/photos/0.png"
+          },
+          {
+            "id": "p1",
+            "url": "/api/photos/1.png"
+          },
+          {
+            "id": "p2",
+            "url": "/api/photos/2.png"
+          },
+          {
+            "id": "p3",
+            "url": "/api/photos/3.png"
+          },
+          {
+            "id": "p4",
+            "url": "/api/photos/4.png"
+          },
+          {
+            "id": "p5",
+            "url": "/api/photos/5.png"
+          },
+          {
+            "id": "p6",
+            "url": "/api/photos/6.png"
+          },
+          {
+            "id": "p7",
+            "url": "/api/photos/7.png"
+          },
+          {
+            "id": "p8",
+            "url": "/api/photos/8.png"
+          },
+          {
+            "id": "p9",
+            "url": "/api/photos/9.png"
+          }
+        ]
+      },
+      "expect": "photos 数量 10"
+    },
+    {
+      "label": "封面不是第一张",
+      "patch": {
+        "photo_url": "/api/photos/def.jpg"
+      },
+      "expect": "封面"
+    },
+    {
+      "label": "照片 id 重复",
+      "patch": {
+        "photos": [
+          {
+            "id": "p1",
+            "url": "/api/photos/abc.png"
+          },
+          {
+            "id": "p1",
+            "url": "/api/photos/x.png"
+          }
+        ]
+      },
+      "expect": "id 重复"
+    },
+    {
+      "label": "时间不是 UTC",
+      "patch": {
+        "created_at": "2026-11-09 12:00"
+      },
+      "expect": "created_at"
+    }
+  ],
+  "summary": {
+    "good": {
+      "id": "0b8f4a52-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+      "name": "番茄炒蛋",
+      "category": "家常菜",
+      "photo_url": "/api/photos/a",
+      "photo_count": 2,
+      "chef_status": "pending",
+      "source": "chef",
+      "created_at": "2026-11-09T12:00:00Z"
+    },
+    "bad": [
+      {
+        "del": "chef_status",
+        "expect": "缺字段 chef_status"
+      },
+      {
+        "del": "source",
+        "expect": "缺字段 source"
+      },
+      {
+        "patch": {
+          "category": "火锅"
+        },
+        "expect": "category"
+      },
+      {
+        "patch": {
+          "chef_status": "done"
+        },
+        "expect": "chef_status 非法"
+      },
+      {
+        "del": "photo_count",
+        "expect": "缺字段 photo_count"
+      },
+      {
+        "patch": {
+          "photo_count": 10
+        },
+        "expect": "photo_count"
+      }
+    ]
+  },
+  "task": {
+    "good": {
+      "id": "0b8f4a52-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+      "name": "番茄炒蛋",
+      "category": "家常菜",
+      "note": null,
+      "photo_url": "/api/photos/a",
+      "photos": [
+        {
+          "id": "p1",
+          "url": "/api/photos/a"
+        }
+      ],
+      "requested_at": "2026-11-09T12:00:00Z",
+      "claimed_at": null
+    },
+    "bad": [
+      {
+        "patch": {
+          "photos": [
+            {
+              "id": "p1",
+              "url": "http://x/a"
+            }
+          ]
+        },
+        "expect": "task.photos[0] 结构不对"
+      },
+      {
+        "patch": {
+          "claimed_at": "yesterday"
+        },
+        "expect": "claimed_at"
+      },
+      {
+        "del": "photos",
+        "expect": "task.photos 不是数组"
+      }
+    ]
+  },
+  "me": {
+    "good": [
+      {
+        "v": {
+          "logged_in": false,
+          "email": null,
+          "can_edit": false
+        },
+        "logged": false
+      },
+      {
+        "v": {
+          "logged_in": true,
+          "email": "koala@example.com",
+          "can_edit": true
+        },
+        "logged": true
+      },
+      {
+        "v": {
+          "logged_in": true,
+          "email": null,
+          "can_edit": true
+        },
+        "logged": true
+      }
+    ],
+    "bad": [
+      {
+        "v": {
+          "can_edit": true
+        },
+        "expect": "logged_in"
+      },
+      {
+        "v": {
+          "logged_in": true,
+          "email": null,
+          "can_edit": false
+        },
+        "expect": "can_edit 应等于"
+      },
+      {
+        "v": {
+          "logged_in": false,
+          "email": "a@b.c",
+          "can_edit": false
+        },
+        "logged": false,
+        "expect": "email 应为 null"
+      },
+      {
+        "v": {
+          "logged_in": true,
+          "can_edit": true
+        },
+        "expect": "email"
+      },
+      {
+        "v": {
+          "logged_in": true,
+          "email": null,
+          "can_edit": true
+        },
+        "logged": false,
+        "expect": "logged_in 应为 false"
+      }
+    ]
+  },
+  "health": {
+    "good": [
+      {
+        "ok": true,
+        "chef_enabled": true,
+        "chef_pending": 2,
+        "chef_mock": false,
+        "photo_store": "kv",
+        "orphan_photos": 0
+      },
+      {
+        "ok": true,
+        "chef_enabled": false,
+        "chef_pending": 0,
+        "chef_mock": true,
+        "photo_store": "r2",
+        "orphan_photos": 3
+      }
+    ],
+    "bad": [
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "photo_store": "kv"
+        },
+        "expect": "chef_mock"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "chef_mock": false,
+          "photo_store": "kv"
+        },
+        "expect": "orphan_photos"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "chef_mock": false,
+          "photo_store": "kv",
+          "orphan_photos": -1
+        },
+        "expect": "orphan_photos"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "chef_mock": false,
+          "photo_store": "kv",
+          "orphan_photos": 1.5
+        },
+        "expect": "orphan_photos"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "chef_mock": false,
+          "photo_store": "kv",
+          "orphan_photos": "0"
+        },
+        "expect": "orphan_photos"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "chef_mock": false
+        },
+        "expect": "photo_store"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "chef_mock": "no",
+          "photo_store": "kv"
+        },
+        "expect": "chef_mock"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": 0,
+          "chef_mock": false,
+          "photo_store": "s3"
+        },
+        "expect": "photo_store"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true
+        },
+        "expect": "chef_pending"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": "yes",
+          "chef_pending": 0
+        },
+        "expect": "chef_enabled"
+      },
+      {
+        "v": {
+          "ok": true,
+          "chef_enabled": true,
+          "chef_pending": "2"
+        },
+        "expect": "chef_pending"
+      },
+      {
+        "v": {
+          "ok": false,
+          "chef_enabled": true,
+          "chef_pending": 0
+        },
+        "expect": "ok"
+      }
+    ]
+  },
+  "errors": {
+    "good": [
+      {
+        "v": {
+          "error": {
+            "code": "BAD_STATE",
+            "message": "这道菜现在不是待写状态"
+          }
+        },
+        "code": "BAD_STATE"
+      }
+    ],
+    "bad": [
+      {
+        "v": {
+          "error": "oops"
+        },
+        "expect": "不是"
+      },
+      {
+        "v": {
+          "error": {
+            "code": "X",
+            "message": "bad"
+          }
+        },
+        "expect": "不是中文"
+      },
+      {
+        "v": {
+          "error": {
+            "code": "CONFLICT",
+            "message": "已被领取"
+          }
+        },
+        "code": "BAD_STATE",
+        "expect": "期望 BAD_STATE"
+      },
+      {
+        "v": {
+          "message": "出错"
+        },
+        "expect": "不是"
+      }
+    ]
+  }
+}
