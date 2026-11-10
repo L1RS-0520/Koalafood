@@ -47,3 +47,24 @@ test('容量提示 §12-24', () => {
 test('确认后提示 §5.7', () => {
   assert.equal(CONFIRMED_TEXT, '已确认，菜谱上线啦！')
 })
+
+test('95% 红条按实际百分数向下取整，满柜看剩余 < 512,000 字节（v2.4.6 §12-33 第 1 条）', async () => {
+  const { storageDangerText, storageIsFull } = await import('../src/api/contract.ts')
+  const L = 996_147_200
+  assert.equal(storageDangerText(Math.ceil(L * 0.95), L), '照片柜快满啦（已用 95%），赶紧删掉一些旧照片吧')
+  assert.equal(storageDangerText(956_301_312, L), '照片柜快满啦（已用 96%），赶紧删掉一些旧照片吧')
+  assert.equal(storageDangerText(L - 512_000, L), '照片柜快满啦（已用 99%），赶紧删掉一些旧照片吧')
+  assert.equal(storageIsFull(L - 512_000, L), false)
+  assert.equal(storageIsFull(L - 511_999, L), true)
+  assert.equal(storageIsFull(946_339_840, L), false)
+})
+
+test('设置页“已用 X MB / 950 MB”：1 位小数，已用向下取整（验收 R1-03）', async () => {
+  const { storageMbText } = await import('../src/api/contract.ts')
+  assert.equal(storageMbText(786_956_288, 'used'), '750.5')
+  assert.equal(storageMbText(946_339_840, 'used'), '902.5')
+  assert.equal(storageMbText(995_635_201, 'used'), '949.5')
+  assert.equal(storageMbText(996_147_199, 'used'), '949.9')
+  assert.equal(storageMbText(0, 'used'), '0.0')
+  assert.equal(storageMbText(996_147_200, 'limit'), '950')
+})

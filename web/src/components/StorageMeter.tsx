@@ -2,14 +2,12 @@
 // - 容量：后端 capacity.level 直接定颜色：warn 黄 / danger 红（不拦上传）；未知按 ok。真满只认 507 STORAGE_FULL（弹框，只有「知道了」）。
 // - 当天上传次数：daily_ops ≥80% 提醒；用完是 429 STORAGE_QUOTA（页面顶部提示条，不弹框，保存按钮照常可点）。
 import { useCallback, useEffect, useState } from 'react'
-import { api, STORAGE, STORAGE_ERROR_TEXT, STORAGE_TEXT, type Storage } from '../api'
+import { api, STORAGE, STORAGE_ERROR_TEXT, STORAGE_TEXT, storageDangerText, storageIsFull, storageMbText, type Storage } from '../api'
 import { cx } from '../lib/util'
 import { Icon } from './Icon'
 import { Koala } from './Koala'
 import { Dialog } from './ui'
 
-const MB = 1024 * 1024
-const mb = (n: number) => Math.round(n / MB).toLocaleString('en-US')
 
 export function useStorage(enabled: boolean) {
   const [s, setS] = useState<Storage | null>(null)
@@ -28,10 +26,15 @@ export function useStorage(enabled: boolean) {
 const opsOn = (s: Storage) => s.store === 'kv' && s.daily_ops.limit > 0
 const opsPct = (s: Storage) => (opsOn(s) ? (s.daily_ops.used / s.daily_ops.limit) * 100 : 0)
 
-/** 容量黄/红提示 + 当天上传次数提醒（ok 且次数正常时什么都不显示） */
-export function StorageWarn({ s }: { s: Storage | null }) {
+/**
+ * 容量黄/红提示 + 当天上传次数提醒（ok 且次数正常时什么都不显示）。
+ * 红条（v2.4.6 §12-33 第 1 条）：显示实际已用 N%（向下取整，95–99）；剩余 < 512,000 字节或这一页刚收到 507（got507）时
+ * 改成“照片柜满啦…”，仍是红色。got507 只是页面状态，刷新/重进按接口实际剩余重新判断。
+ */
+export function StorageWarn({ s, got507 = false }: { s: Storage | null; got507?: boolean }) {
   if (!s) return null
-  const lv = s.capacity.level
+  const full = got507 || storageIsFull(s.capacity.used_bytes, s.capacity.limit_bytes)
+  const lv = full ? 'danger' : s.capacity.level
   const opsHigh = opsPct(s) >= STORAGE.opsWarnPct
   if (lv === 'ok' && !opsHigh) return null
   return (
@@ -41,7 +44,7 @@ export function StorageWarn({ s }: { s: Storage | null }) {
           <Icon name="alert" size={22} />
           <div>
             <span className="cap-tag">容量</span>
-            <b>{lv === 'danger' ? STORAGE_TEXT.danger : STORAGE_TEXT.warn}</b>
+            <b>{full ? STORAGE_ERROR_TEXT.STORAGE_FULL : lv === 'danger' ? storageDangerText(s.capacity.used_bytes, s.capacity.limit_bytes) : STORAGE_TEXT.warn}</b>
             <small>{STORAGE_TEXT.hint}</small>
           </div>
         </div>
@@ -73,7 +76,7 @@ export function StorageMeter({ s }: { s: Storage | null }) {
           <i style={{ width: `${pct}%` }} />
         </div>
         <p className="storage-main">
-          已用 {mb(c.used_bytes)} MB / {mb(c.limit_bytes)} MB，大约还能传 <b>{c.photos_left.toLocaleString('en-US')}</b> 张
+          已用 {storageMbText(c.used_bytes, 'used')} MB / {storageMbText(c.limit_bytes, 'limit')} MB，大约还能传 <b>{c.photos_left.toLocaleString('en-US')}</b> 张
         </p>
         <p className="storage-sub">
           已存 {s.photo_count} 张照片{opsOn(s) && ` · 今天已传 ${s.daily_ops.used}/${s.daily_ops.limit} 次`}

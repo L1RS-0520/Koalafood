@@ -116,6 +116,7 @@ export const STORAGE = {
 /** 存储提示文案（需求 v2.4.4 §12-24 + 设计 2026-11-10-存储与限额状态） */
 export const STORAGE_TEXT = {
   warn: '照片柜已经用了 80%，可以删掉一些旧照片啦',
+  /** 只是 95.0–95.9% 时的样子；实际显示用 storageDangerText（v2.4.6 起按实际百分数） */
   danger: '照片柜快满啦（已用 95%），赶紧删掉一些旧照片吧',
   hint: '在菜品编辑页可以删掉不要的照片',
   /** 429 副文案 · 编辑页（产品审核 round-1 第三节 ②） */
@@ -125,6 +126,25 @@ export const STORAGE_TEXT = {
   /** 507 弹框正文（只有一个「知道了」） */
   fullBody: '这次填的内容都还在，删掉一些不要的照片后，再点保存就行。',
 } as const
+
+const MB_BYTES_ = 1024 * 1024
+/** 剩余不够一张照片（< 512,000 字节）就算“满了”（需求 v2.4.6 §12-33 第 1 条） */
+export const storageIsFull = (usedBytes: number, limitBytes: number) => limitBytes - usedBytes < STORAGE.estPhotoBytes
+/** 95% 红条：显示实际已用百分数，向下取整，限定 95–99（按字节算，不用四舍五入过的 percent） */
+export function storageDangerText(usedBytes: number, limitBytes: number): string {
+  const n = Math.min(99, Math.max(95, Math.floor((usedBytes / limitBytes) * 100)))
+  return `照片柜快满啦（已用 ${n}%），赶紧删掉一些旧照片吧`
+}
+/**
+ * 设置页“已用 X MB / 950 MB”：1024 进制、1 位小数（验收清单 CAP-03 口径，码驼确认的单位）。
+ * 已用向下取整，避免还没满时显示成“950.0 MB / 950 MB”；上限是整数时不带小数。
+ */
+export function storageMbText(bytes: number, kind: 'used' | 'limit'): string {
+  const mb = bytes / MB_BYTES_
+  if (kind === 'limit' && Number.isInteger(Math.round(mb * 1e6) / 1e6)) return Math.round(mb).toLocaleString('en-US')
+  const v = kind === 'used' ? Math.floor(Math.round(mb * 10 * 1e6) / 1e6) / 10 : Math.round(mb * 10) / 10
+  return v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
 
 /**
  * 选图时逐张校验的提示（产品审核 round-1 第三节 ② 定稿）。

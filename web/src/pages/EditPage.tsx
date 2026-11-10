@@ -39,6 +39,8 @@ export function EditPage() {
   /** 429：顶部提示条（文字修改照常可保存）；507：弹框 */
   const [quota, setQuota] = useState(false)
   const [full, setFull] = useState(false)
+  // 这一页收到过 507：顶部红条立刻改“满啦”（刷新后按接口重判，不记住）
+  const [got507, setGot507] = useState(false)
   const [storage] = useStorage(true)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   useTitle(confirmMode ? '修改后确认' : '编辑菜品')
@@ -138,7 +140,7 @@ export function EditPage() {
         setQuota(true)
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
-      if (code === 'STORAGE_FULL') setFull(true)
+      if (code === 'STORAGE_FULL') (setFull(true), setGot507(true))
     } finally {
       setPhotoBusy(false)
     }
@@ -248,7 +250,7 @@ export function EditPage() {
                 自己保存后厨驼这次的任务就作废了。
               </p>
             )}
-            <StorageWarn s={storage} />
+            <StorageWarn s={storage} got507={got507} />
             <section className="form-card" aria-labelledby="h-photos" id="f-photos">
               <h2 className="form-card-title" id="h-photos">
                 照片

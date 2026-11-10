@@ -42,6 +42,8 @@ export function UploadPage() {
   /** 429：顶部提示条；507：弹框；413：标在对应那张上 */
   const [quota, setQuota] = useState(false)
   const [full, setFull] = useState(false)
+  const [got507, setGot507] = useState(false) // v2.4.6 §12-33-1：收到 507 后红条立刻改“满啦”
+
   const [serverBad, setServerBad] = useState<Record<string, string>>({})
 
   // 厨驼关掉时只有手写
@@ -197,6 +199,7 @@ export function UploadPage() {
       }
       if (code === 'STORAGE_FULL') {
         setFull(true)
+        setGot507(true)
         reloadStorage()
       }
       if (code === 'CHEF_DISABLED') {
@@ -252,7 +255,7 @@ export function UploadPage() {
         }}
       >
         {quota && <QuotaBanner page="upload" onClose={() => setQuota(false)} />}
-        <StorageWarn s={storage} />
+        <StorageWarn s={storage} got507={got507} />
         <section className="form-card" id="f-photos" aria-labelledby="h-photos">
           <h2 className="form-card-title" id="h-photos">
             <span className="step-badge">1</span>拍下这道菜 <i className="req">至少 1 张</i>
