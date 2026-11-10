@@ -95,6 +95,11 @@ const results = await page.evaluate(
       rec('HEIC 给友好提示（与选图校验同一句定稿）', e.code === 'DECODE' && e.message === want, e.message)
     }
 
+    // 6b. 单张进度（round-2 上传页进度环）：从 15 起、单调递增、最后到 100
+    const pcts = []
+    await m.compressImage(fromB64(gps, 'p.jpg', 'image/jpeg'), (p) => pcts.push(p))
+    rec('单张压缩进度：15 起、单调递增、完成 100', pcts[0] === 15 && pcts.at(-1) === 100 && pcts.every((v, i) => i === 0 || v >= pcts[i - 1]), pcts.join(','))
+
     // 7. 批量进度回调
     const prog = []
     await m.compressAll([fromB64(gps, 'a.jpg', 'image/jpeg'), fromB64(gps, 'b.jpg', 'image/jpeg')], (d, t) => prog.push(`${d}/${t}`))
