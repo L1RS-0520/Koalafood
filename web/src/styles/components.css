@@ -994,23 +994,29 @@
   pointer-events: none;
 }
 .gallery-zoom {
-  /* 右下放大钮 34×34、10 圆角；点击区补到 44 */
+  /* 外观仍是右下 34×34、10 圆角（right/bottom 10）；热区是按钮自身 44×44，向四周各扩 5 */
   position: absolute;
   z-index: 2;
-  right: 10px;
-  bottom: 10px;
+  isolation: isolate;
+  right: 5px;
+  bottom: 5px;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.gallery-zoom::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  z-index: -1;
   border: var(--line-sm);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.94);
-}
-.gallery-zoom::before {
-  content: '';
-  position: absolute;
-  inset: -7px;
+  pointer-events: none;
 }
 .gallery-swipe-hint {
   position: absolute;
@@ -1264,6 +1270,12 @@
 .textarea {
   resize: vertical;
   min-height: 72px;
+}
+/* P2-2：逐条编辑步骤正文按内容长高；不支持 field-sizing 时由 GrowTextarea 用 scrollHeight 兜底 */
+.textarea--grow {
+  field-sizing: content;
+  resize: none;
+  overflow: hidden;
 }
 .textarea--lined {
   background-image: repeating-linear-gradient(transparent 0 33px, #f0e2c8 33px 34px);

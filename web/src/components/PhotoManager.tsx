@@ -140,7 +140,6 @@ export function PhotoManager({
                 <img src={p.url} alt={`第 ${i + 1} 张`} draggable={false} />
               )}
               {p.problem && <span className="photo-ef" aria-hidden="true" />}
-              {i === 0 && !p.problem && !p.status && <span className="photo-cover-tag">封面</span>}
               <span className="photo-no" aria-hidden="true">
                 {i + 1}
               </span>
@@ -192,24 +191,32 @@ export function PhotoManager({
               >
                 <Icon name="close" size={16} />
               </button>
-              {items.length > 1 && (
+              {(items.length > 1 || (i === 0 && !p.problem && !p.status)) && (
                 <div className="photo-tools">
-                  <button type="button" aria-label="往前挪" disabled={busy || i === 0} onClick={() => onMove(i, i - 1)}>
-                    <Icon name="left" size={16} />
-                  </button>
-                  {i !== 0 && (
-                    <button type="button" className="photo-setcover" disabled={busy} onClick={() => onMove(i, 0)}>
-                      设封面
+                  {items.length > 1 && (
+                    <button type="button" aria-label="往前挪" disabled={busy || i === 0} onClick={() => onMove(i, i - 1)}>
+                      <Icon name="left" size={16} />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    aria-label="往后挪"
-                    disabled={busy || i === items.length - 1}
-                    onClick={() => onMove(i, i + 1)}
-                  >
-                    <Icon name="right" size={16} />
-                  </button>
+                  {i === 0 && !p.problem && !p.status ? (
+                    <span className="photo-cover-tag">封面</span>
+                  ) : (
+                    i !== 0 && (
+                      <button type="button" className="photo-setcover" disabled={busy} onClick={() => onMove(i, 0)}>
+                        设封面
+                      </button>
+                    )
+                  )}
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      aria-label="往后挪"
+                      disabled={busy || i === items.length - 1}
+                      onClick={() => onMove(i, i + 1)}
+                    >
+                      <Icon name="right" size={16} />
+                    </button>
+                  )}
                 </div>
               )}
             </li>

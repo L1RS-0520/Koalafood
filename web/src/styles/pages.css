@@ -47,27 +47,39 @@
 .king-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-height: 32px;
-  padding: 0 12px;
+  position: relative;
+  isolation: isolate;
+  /* 热区至少 44×44；外观 32 高的胶囊由 ::after 画，宽度保持原样（左右各 14 = 原 12 内边距 + 2 边框） */
+  min-height: 44px;
+  min-width: 44px;
+  margin-top: -6px;
+  margin-bottom: -6px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.login-pill::after,
+.king-pill::after {
+  content: '';
+  position: absolute;
+  inset: 6px 0;
+  z-index: -1;
   border: var(--line-sm);
   border-radius: var(--r-pill);
   background: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  /* 触控区补到 44px */
-  position: relative;
-}
-.login-pill::before,
-.king-pill::before {
-  /* 外观 32 高；inset 从内边距框算起，要加上 2px 边框：32 + 2×(2+4) = 44（设计走查 P1-2） */
-  content: '';
-  position: absolute;
-  inset: -8px -2px;
+  pointer-events: none;
 }
 .king-pill {
-  background: var(--ink);
   color: #fff;
+}
+.king-pill::after {
+  background: var(--ink);
 }
 .greet {
   display: flex;
@@ -108,6 +120,12 @@
 }
 .home-main {
   min-width: 0;
+}
+/* P2-5 方案 A：手机有浮动按钮时，卡片网格底部留出按钮高度 + 安全区，滚到底时最后一行菜名不被压住。不做收缩动画。 */
+@media (max-width: 959px) {
+  .page--home:has(.fab) .grid {
+    padding-bottom: calc(8px + 56px + env(safe-area-inset-bottom, 0px));
+  }
 }
 /* 桌面：左侧分类栏 + 右侧菜品墙 */
 @media (min-width: 960px) {
@@ -475,16 +493,14 @@
   text-align: center;
 }
 .photo-cover-tag {
-  position: absolute;
-  left: 4px;
-  top: 4px;
+  /* P2-3 / 设计稿② / A3：蛋黄「封面」放进封面格底部工具条，不再放左上 */
   padding: 0 7px;
-  border: 1.5px solid var(--ink);
-  border-radius: var(--r-pill);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
   background: var(--accent);
-  font-family: var(--font-display);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
 }
 .photo-grip {
   /* 设计走查 P1-2：44×44，紧贴在底部挪动按钮的 44 高点击区上方；序号角标不接收点击，让给把手 */
@@ -719,7 +735,7 @@
   min-height: 44px; /* 设计走查 P1-2：输入框点击区 ≥44 */
   padding: 6px 8px;
   border-width: 2px;
-  font-size: 15px;
+  font-size: 16px; /* P2-1：至少 16px，避免 iPhone Safari 聚焦时自动放大页面 */
 }
 .row-tools {
   display: flex;
@@ -1716,32 +1732,35 @@
   font-size: 12px;
   line-height: 1;
 }
-.photo-cover-tag {
-  left: 30px;
-  top: 5px;
-  font-size: 12px;
-  line-height: 18px;
-  background: var(--primary);
-}
+/* P2-3：大小角标做成设计稿②的绿色底条（完成态写压缩后大小），有工具条时贴在条上方 */
 .photo-size {
   position: absolute;
-  left: 30px;
-  top: 5px;
-  display: inline-flex;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 0 6px 0 4px;
-  border: 1.5px solid var(--ink);
-  border-radius: var(--r-pill);
+  padding: 0;
+  border: 0;
+  border-top: 2.5px solid var(--ink);
+  border-radius: 0;
   background: #e3f4ec;
-  color: #1c6b45;
+  color: #2a7354; /* #2A7354 在 #E3F4EC 上对比度 5.01；现有 --storage-pct-ok #2F7D57 只有 4.39，不够 4.5 */
   font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 11px;
-  line-height: 18px;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 22px;
 }
-.photo-tile--cover .photo-size {
-  display: none;
+.photo-tile:has(.photo-tools) .photo-size,
+.photo-tile:has(.photo-tools) .photo-bad {
+  bottom: 30px;
+}
+.photo-tile:has(.photo-size) .photo-grip,
+.photo-tile:has(.photo-bad) .photo-grip {
+  bottom: 66px;
 }
 .photo-tile.is-bad {
   border-color: var(--danger);
@@ -1751,9 +1770,19 @@
   filter: saturate(0.4) brightness(0.85);
 }
 .photo-bad {
+  left: 0;
+  right: 0;
   top: auto;
-  bottom: 34px;
-  line-height: 16px;
+  bottom: 0;
+  padding: 0;
+  border-radius: 0;
+  border-top: 2.5px solid var(--ink);
+  background: var(--danger-tag-bg);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 22px;
+  text-align: center;
 }
 .photo-errors {
   margin-top: 10px;
