@@ -47,27 +47,39 @@
 .king-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  min-height: 32px;
-  padding: 0 12px;
+  position: relative;
+  isolation: isolate;
+  /* 热区至少 44×44；外观 32 高的胶囊由 ::after 画，宽度保持原样（左右各 14 = 原 12 内边距 + 2 边框） */
+  min-height: 44px;
+  min-width: 44px;
+  margin-top: -6px;
+  margin-bottom: -6px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.login-pill::after,
+.king-pill::after {
+  content: '';
+  position: absolute;
+  inset: 6px 0;
+  z-index: -1;
   border: var(--line-sm);
   border-radius: var(--r-pill);
   background: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  /* 触控区补到 44px */
-  position: relative;
-}
-.login-pill::before,
-.king-pill::before {
-  /* 外观 32 高；inset 从内边距框算起，要加上 2px 边框：32 + 2×(2+4) = 44（设计走查 P1-2） */
-  content: '';
-  position: absolute;
-  inset: -8px -2px;
+  pointer-events: none;
 }
 .king-pill {
-  background: var(--ink);
   color: #fff;
+}
+.king-pill::after {
+  background: var(--ink);
 }
 .greet {
   display: flex;
