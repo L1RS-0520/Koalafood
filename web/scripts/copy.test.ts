@@ -1,7 +1,7 @@
 // 定稿文案单元测试（产品审核 round-1 第三节 ②）：node --test --experimental-strip-types scripts/copy.test.ts
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { CONFIRMED_TEXT, isHeic, PHOTO_TEXT, STORAGE_ERROR_TEXT, STORAGE_TEXT } from '../src/api/contract.ts'
+import { CONFIRMED_TEXT, heicPhotoText, isHeic, PHOTO_TEXT, tooBigPhotoText, STORAGE_ERROR_TEXT, STORAGE_TEXT } from '../src/api/contract.ts'
 
 test('HEIC 提示：§12-5 原文前加文件名', () => {
   assert.equal(PHOTO_TEXT.heic('IMG_0001.HEIC'), '「IMG_0001.HEIC」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）')
@@ -10,6 +10,12 @@ test('HEIC 提示：§12-5 原文前加文件名', () => {
 test('原图超 10MB：X 保留 1 位小数', () => {
   assert.equal(PHOTO_TEXT.tooBig('big.jpg', 12.34 * 1024 * 1024), '「big.jpg」有 12.3 MB，超过 10MB 了，换一张小一点的吧')
   assert.equal(PHOTO_TEXT.tooBig('a.png', 10 * 1024 * 1024 + 1), '「a.png」有 10.0 MB，超过 10MB 了，换一张小一点的吧')
+})
+
+test('导出函数：heicPhotoText(文件名) / tooBigPhotoText(文件名, MB数)', () => {
+  assert.equal(heicPhotoText('a.heic'), '「a.heic」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）')
+  assert.equal(tooBigPhotoText('b.jpg', 12.34), '「b.jpg」有 12.3 MB，超过 10MB 了，换一张小一点的吧')
+  assert.equal(PHOTO_TEXT.heic('a.heic'), heicPhotoText('a.heic'))
 })
 
 test('isHeic：按 MIME 或扩展名', () => {

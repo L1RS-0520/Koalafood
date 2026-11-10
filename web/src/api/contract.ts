@@ -125,13 +125,21 @@ export const STORAGE_TEXT = {
 
 /**
  * 选图时逐张校验的提示（产品审核 round-1 第三节 ② 定稿）。
- * PhotoManager 选图校验和 compress 解码失败共用，保证两处一字不差。
+ * PhotoManager 选图校验、compress 解码失败、round-2-photos 网格标红都直接引用这两个函数，保证一字不差。
  */
+/** HEIC：「文件名」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’） */
+export function heicPhotoText(fileName: string): string {
+  return `「${fileName}」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）`
+}
+/** 原图超 10MB：「文件名」有 X MB，超过 10MB 了，换一张小一点的吧（mb 为 MB 数，显示保留 1 位小数） */
+export function tooBigPhotoText(fileName: string, mb: number): string {
+  return `「${fileName}」有 ${mb.toFixed(1)} MB，超过 10MB 了，换一张小一点的吧`
+}
 const MB_BYTES = 1024 * 1024
+/** 旧调用方式（按字节）的兼容封装 */
 export const PHOTO_TEXT = {
-  heic: (name: string) => `「${name}」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）`,
-  /** 原图超 10MB；X 保留 1 位小数（如 12.3） */
-  tooBig: (name: string, bytes: number) => `「${name}」有 ${(bytes / MB_BYTES).toFixed(1)} MB，超过 10MB 了，换一张小一点的吧`,
+  heic: heicPhotoText,
+  tooBig: (fileName: string, bytes: number) => tooBigPhotoText(fileName, bytes / MB_BYTES),
 } as const
 
 /** 文件是不是 HEIC/HEIF（按 MIME 或扩展名） */
