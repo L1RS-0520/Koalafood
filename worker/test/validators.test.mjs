@@ -13,6 +13,8 @@ import {
 import {
   LEAN_OPS_BUDGET, MIN_REMAINING, isLocal8787, fullGuard, preflight, opsUsed,
 } from './lib/budget.mjs';
+import { readChefKey } from './lib/chefkey.mjs';
+import * as R2 from './lib/round2.mjs';
 import { createRunner, redact, registerSecret } from './lib/runner.mjs';
 import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -259,6 +261,91 @@ export async function runOfflineTests(runner) {
     }
   });
 
+  // ---------- 第二轮：并发 / 草稿一致性判定（纯函数） ----------
+  const r2 = { api: '离线·第二轮判定' };
+  const res = (status, code, data) => ({ status,
+    data: code ? { error: { code, message: '中文' } } : (data ?? {}) });
+  const norm = (d) => structuredClone(d); // 服务端规范化后结构不变
+  const dish = (chef_status, draft = null) => ({ chef_status, draft,
+    chef_requested_at: chef_status === 'pending' ? '2026-11-10T00:00:00.000Z' : null });
+  await test('ROUND2_BASE 护栏：未设 / 8787 / 非法 → 拒绝；8820 → 放行', r2, () => {
+    assert.ok(R2.round2BaseError(undefined));
+    assert.ok(R2.round2BaseError(''));
+    assert.ok(R2.round2BaseError('http://localhost:8787'));
+    assert.ok(R2.round2BaseError('http://127.0.0.1:8787/'));
+    assert.ok(R2.round2BaseError('not a url'));
+    assert.equal(R2.round2BaseError('http://127.0.0.1:8820'), null);
+  });
+  await test('wholeDraftFrom：整份来自一个 tag 通过；混拼 / 缺 tag / 步骤数不对报错', r2, () => {
+    const a = norm(R2.taggedDraft('AAA111')), b = norm(R2.taggedDraft('BBB222'));
+    assert.deepEqual(R2.wholeDraftFrom(a, ['AAA111', 'BBB222']), []);
+    const mix = { ...a, steps: b.steps };
+    expectBad(R2.wholeDraftFrom(mix, ['AAA111', 'BBB222']), '2 份提交');
+    expectBad(R2.wholeDraftFrom({ ...a, total_time: null }, ['AAA111']), 'total_time');
+    expectBad(R2.wholeDraftFrom(R2.taggedDraft('AAA111', { steps: 4 }), ['AAA111']), '步骤数');
+    expectBad(R2.wholeDraftFrom(null, ['AAA111']), '不是对象');
+  });
+  await test('judgeClaimRace：一成一 409 CONFLICT 通过；双 200 / 错码报错', r2, () => {
+    assert.deepEqual(R2.judgeClaimRace(res(200), res(409, 'CONFLICT')), []);
+    assert.deepEqual(R2.judgeClaimRace(res(409, 'CONFLICT'), res(200)), []);
+    expectBad(R2.judgeClaimRace(res(200), res(200)), '实际 2 个');
+    expectBad(R2.judgeClaimRace(res(409, 'CONFLICT'), res(409, 'CONFLICT')), '实际 0 个');
+    expectBad(R2.judgeClaimRace(res(200), res(409, 'BAD_STATE')), '409 CONFLICT');
+  });
+  await test('judgeDraftRace：赢家整份草稿通过；双成功 / 混拼 / 草稿归属错报错', r2, () => {
+    const A = R2.taggedDraft('AAA111'), Bd = R2.taggedDraft('BBB222');
+    const tags = ['AAA111', 'BBB222'];
+    assert.deepEqual(R2.judgeDraftRace([res(200), res(409, 'BAD_STATE')], tags,
+      dish('draft', A)), []);
+    expectBad(R2.judgeDraftRace([res(200), res(200)], tags, dish('draft', A)), '恰好 1 份');
+    expectBad(R2.judgeDraftRace([res(200), res(409, 'BAD_STATE')], tags,
+      dish('draft', Bd)), '返回 200 的是 AAA111');
+    expectBad(R2.judgeDraftRace([res(200), res(409, 'BAD_STATE')], tags,
+      dish('draft', { ...A, tips: Bd.tips })), '2 份提交');
+    expectBad(R2.judgeDraftRace([res(200), res(409, 'BAD_STATE')], tags,
+      dish('pending')), '应为 draft');
+    expectBad(R2.judgeDraftRace([res(200), res(400, 'VALIDATION')], tags,
+      dish('draft', A)), 'BAD_STATE');
+  });
+  await test('judgeDraftVsAsk：两种合法串行通过；残留草稿 / 草稿却没 200 报错', r2, () => {
+    const D = R2.taggedDraft('CCC333');
+    assert.deepEqual(R2.judgeDraftVsAsk(res(200), res(200), 'CCC333', dish('pending')), []);
+    assert.deepEqual(R2.judgeDraftVsAsk(res(200), res(200), 'CCC333', dish('draft', D)), []);
+    assert.deepEqual(R2.judgeDraftVsAsk(res(409, 'BAD_STATE'), res(200), 'CCC333', dish('pending')), []);
+    expectBad(R2.judgeDraftVsAsk(res(200), res(200), 'CCC333', dish('pending', D)), '草稿');
+    expectBad(R2.judgeDraftVsAsk(res(409, 'BAD_STATE'), res(200), 'CCC333', dish('draft', D)), '没返回 200');
+    expectBad(R2.judgeDraftVsAsk(res(200), res(200), 'CCC333', dish('confirmed')), '合法串行');
+    expectBad(R2.judgeDraftVsAsk(res(200), res(409, 'BAD_STATE'), 'CCC333', dish('draft', D)), 'ask-chef');
+  });
+  await test('judgeDraftVsDiscard：两种合法串行通过；状态与返回码不符报错', r2, () => {
+    const D = R2.taggedDraft('DDD444');
+    assert.deepEqual(R2.judgeDraftVsDiscard(res(200), res(200), 'DDD444', dish('confirmed')), []);
+    assert.deepEqual(R2.judgeDraftVsDiscard(res(200), res(409, 'BAD_STATE'), 'DDD444', dish('draft', D)), []);
+    expectBad(R2.judgeDraftVsDiscard(res(200), res(200), 'DDD444', dish('draft', D)), 'confirmed');
+    expectBad(R2.judgeDraftVsDiscard(res(200), res(409, 'BAD_STATE'), 'DDD444', dish('confirmed')), '应为 draft');
+    expectBad(R2.judgeDraftVsDiscard(res(409, 'BAD_STATE'), res(409, 'BAD_STATE'), 'DDD444', dish('pending')), '交稿应 200');
+    expectBad(R2.judgeDraftVsDiscard(res(200), res(500, 'INTERNAL'), 'DDD444', dish('draft', D)), '200 或 409');
+  });
+  await test('listTotalTimeIssues / leakedTags：只有 confirmed 可带 total_time', r2, () => {
+    assert.ok(R2.listTotalTimeIssues({ chef_status: 'pending' }).absent);
+    const ok = R2.listTotalTimeIssues({ chef_status: 'confirmed', total_time: '20分钟' });
+    assert.deepEqual([ok.hard, ok.soft], [[], []]);
+    assert.deepEqual(R2.listTotalTimeIssues({ chef_status: 'draft', total_time: null }).hard, []);
+    expectBad(R2.listTotalTimeIssues({ chef_status: 'draft', total_time: 'T9' }).hard, 'draft');
+    expectBad(R2.listTotalTimeIssues({ chef_status: 'confirmed', total_time: 5 }).hard, '字符串');
+    const old = R2.listTotalTimeIssues({ chef_status: 'pending', total_time: 'T1' }, { formal: 'T1' });
+    assert.deepEqual(old.hard, []);
+    assert.equal(old.soft.length, 1);
+    assert.deepEqual(R2.leakedTags('{"a":"xAAA111"}', ['AAA111', 'BBB222']), ['AAA111']);
+    assert.deepEqual(R2.leakedTags('{}', ['AAA111']), []);
+  });
+  await test('stateConsistency：draft 必有草稿、非 draft 不得有、pending 要有请求时间', r2, () => {
+    assert.deepEqual(R2.stateConsistency(dish('draft', {})), []);
+    expectBad(R2.stateConsistency(dish('draft')), 'draft 为空');
+    expectBad(R2.stateConsistency(dish('confirmed', {})), 'draft 非空');
+    expectBad(R2.stateConsistency({ chef_status: 'pending', draft: null }), 'chef_requested_at');
+  });
+
   const sec = { api: '离线·安全护栏' };
   await test('护栏：非本次创建的 id 一律拒绝', sec, () => {
     const g = createOwnershipGuard();
@@ -373,18 +460,7 @@ function listFiles(root) {
   walk(root);
   return out;
 }
-function readChefKeyForScan() {
-  const f = new URL('../.dev.vars', import.meta.url);
-  if (!existsSync(f)) return null;
-  for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*(?:export\s+)?CHEF_KEY\s*=\s*(.*?)\s*$/);
-    if (!m) continue;
-    let v = m[1];
-    if (/^(['"]).*\1$/.test(v)) v = v.slice(1, -1);
-    return v || null;
-  }
-  return null;
-}
+const readChefKeyForScan = () => readChefKey();
 
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && pathToFileURL(process.argv[1]).href ===
