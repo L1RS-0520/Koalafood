@@ -535,18 +535,17 @@
   border-top: var(--line-sm);
 }
 .photo-tools button {
+  /* B04：外观仍在底部 30 高的条里（上 16 透明），点击盒本身 44 高，getBoundingClientRect 能量到 44；不再用 ::before，以免和上方拖动柄热区重叠 */
   position: relative;
   display: grid;
   place-items: center;
+  box-sizing: border-box;
   min-width: 44px;
+  height: 44px;
+  margin-top: -16px;
+  padding-top: 16px;
   font-size: 12px;
   font-weight: 700;
-}
-.photo-tools button::before {
-  /* 工具条外观 30 高（按钮 28 + 上边框 2），点击区向上补 16 到 44（设计走查 P1-2） */
-  content: '';
-  position: absolute;
-  inset: -16px 0 0 0;
 }
 .photo-tools button:disabled {
   opacity: 0.25;
