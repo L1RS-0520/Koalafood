@@ -90,18 +90,24 @@ export function useRevealFocusedField() {
       reveal(el)
       requestAnimationFrame(() => reveal(el))
     }
-    const onViewport = () => {
+    // 只在聚焦和可视高度变小（键盘弹出）时调整。
+    // 不听 visualViewport scroll：iOS 键盘打开后用户自己滑页面也会触发，会被强行拉回输入框。
+    const onViewportResize = () => {
+      const vvNow = window.visualViewport
+      const h = vvNow ? vvNow.height : window.innerHeight
+      const shrink = h < lastHeight - 1
+      lastHeight = h
+      if (!shrink) return
       const el = field(document.activeElement)
       if (el) reveal(el)
     }
     document.addEventListener('focusin', onFocus)
     const vv = window.visualViewport
-    vv?.addEventListener('resize', onViewport)
-    vv?.addEventListener('scroll', onViewport)
+    let lastHeight = vv ? vv.height : window.innerHeight
+    vv?.addEventListener('resize', onViewportResize)
     return () => {
       document.removeEventListener('focusin', onFocus)
-      vv?.removeEventListener('resize', onViewport)
-      vv?.removeEventListener('scroll', onViewport)
+      vv?.removeEventListener('resize', onViewportResize)
     }
   }, [])
 }
