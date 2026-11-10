@@ -27,7 +27,8 @@ id = "00000000000000000000000000000000"
 [vars]
 # 照片存储：kv（默认）| d1 | r2（只能配合 --env r2），对比见 docs/照片存储方案.md
 PHOTO_STORE = "kv"
-# 照片总容量安全上限（字节），默认 950MB = 996147200（KV 免费版 1 GB）；超过返回 507 STORAGE_FULL
+# 照片总容量安全上限：线上固定 950MB（996147200 字节，KV 免费版 1 GB 留余量），已用+本次超过返回 507 STORAGE_FULL。
+# STORAGE_LIMIT_BYTES 和 STORAGE_USED_SIM 只在本地生效（线上配了也不读），这里的值只是本地默认
 STORAGE_LIMIT_BYTES = "996147200"
 # KV 每个 UTC 日 put+delete 次数上限，默认 1000（KV 免费版写入、删除各 1,000 次/天）；超过返回 429 STORAGE_QUOTA
 KV_DAILY_WRITE_LIMIT = "1000"
