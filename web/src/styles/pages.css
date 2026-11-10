@@ -475,16 +475,14 @@
   text-align: center;
 }
 .photo-cover-tag {
-  position: absolute;
-  left: 4px;
-  top: 4px;
+  /* P2-3 / 设计稿② / A3：蛋黄「封面」放进封面格底部工具条，不再放左上 */
   padding: 0 7px;
-  border: 1.5px solid var(--ink);
-  border-radius: var(--r-pill);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
   background: var(--accent);
-  font-family: var(--font-display);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
 }
 .photo-grip {
   /* 设计走查 P1-2：44×44，紧贴在底部挪动按钮的 44 高点击区上方；序号角标不接收点击，让给把手 */
@@ -1716,32 +1714,35 @@
   font-size: 12px;
   line-height: 1;
 }
-.photo-cover-tag {
-  left: 30px;
-  top: 5px;
-  font-size: 12px;
-  line-height: 18px;
-  background: var(--primary);
-}
+/* P2-3：大小角标做成设计稿②的绿色底条（完成态写压缩后大小），有工具条时贴在条上方 */
 .photo-size {
   position: absolute;
-  left: 30px;
-  top: 5px;
-  display: inline-flex;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  padding: 0 6px 0 4px;
-  border: 1.5px solid var(--ink);
-  border-radius: var(--r-pill);
+  padding: 0;
+  border: 0;
+  border-top: 2.5px solid var(--ink);
+  border-radius: 0;
   background: #e3f4ec;
-  color: #1c6b45;
+  color: #2e7d5b;
   font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 11px;
-  line-height: 18px;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 22px;
 }
-.photo-tile--cover .photo-size {
-  display: none;
+.photo-tile:has(.photo-tools) .photo-size,
+.photo-tile:has(.photo-tools) .photo-bad {
+  bottom: 30px;
+}
+.photo-tile:has(.photo-size) .photo-grip,
+.photo-tile:has(.photo-bad) .photo-grip {
+  bottom: 66px;
 }
 .photo-tile.is-bad {
   border-color: var(--danger);
@@ -1751,9 +1752,19 @@
   filter: saturate(0.4) brightness(0.85);
 }
 .photo-bad {
+  left: 0;
+  right: 0;
   top: auto;
-  bottom: 34px;
-  line-height: 16px;
+  bottom: 0;
+  padding: 0;
+  border-radius: 0;
+  border-top: 2.5px solid var(--ink);
+  background: var(--danger-tag-bg);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 22px;
+  text-align: center;
 }
 .photo-errors {
   margin-top: 10px;
