@@ -49,13 +49,13 @@ export function diffPatch(initial: { basics: BasicsLike; content: RecipeContent 
   return patch
 }
 
-/** 份量 / 总时长超长：和后端同一句（worker draft.ts optText） */
+/** 份量 / 总时长超长：全中文「份量最多 20 个字，现在 N 个字」（产品复审 2026-11-10 定，不带英文字段名；mock 也用这句） */
 export function metaErrors(c: Pick<RecipeContent, 'servings' | 'total_time'>): string[] {
   const out: string[] = []
   const chk = (key: 'servings' | 'total_time', label: string, max: number) => {
     const s = c[key]?.trim()
     const n = s ? [...s].length : 0
-    if (n > max) out.push(`${label}（${key}）最多 ${max} 个字，现在 ${n} 个字`)
+    if (n > max) out.push(`${label}最多 ${max} 个字，现在 ${n} 个字`)
   }
   chk('servings', '份量', LIMITS.servingsMax)
   chk('total_time', '总时长', LIMITS.totalTimeMax)
