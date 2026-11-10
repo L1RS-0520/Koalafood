@@ -22,6 +22,8 @@
 //   LEVEL_BASE_ROUND   STORAGE_USED_SIM=floor(limit×0.7996) 的实例
 //                      （percent=80.0 但 level=ok），不设则 SKIP
 //   EXPECT_PHOTO_STORE  health.photo_store 期望值，默认 kv
+//   --offline / OFFLINE=1  只跑离线单测 + 密钥扫描，零网络请求
+//                   （http 助手和 fetch 被锁死，调用即抛错）
 //   OFFLINE=0       跳过离线校验器单测
 //   STRICT=1        WARN 也算 FAIL
 // 退出码：全过 0；有 FAIL 1；服务不可达 2；
@@ -36,8 +38,10 @@
 //   chef_enabled 在 finally 里恢复为 true。
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { createClient, CookieJar, makeForm, NetworkError }
-  from './lib/http.mjs';
+import {
+  createClient, CookieJar, makeForm, NetworkError, blockNetwork,
+  blockedAttempts,
+} from './lib/http.mjs';
 import {
   image, pngOfSize, tooLargePng, textFile, fakePng, sameBytes,
 } from './lib/images.mjs';
@@ -47,6 +51,14 @@ import * as V from './lib/validators.mjs';
 import * as B from './lib/budget.mjs';
 import { runOfflineTests } from './validators.test.mjs';
 
+// ---------- 命令行参数（未知参数直接报错，绝不悄悄跑在线用例） ----------
+const ARGS = process.argv.slice(2);
+const BAD_ARGS = ARGS.filter((a) => a !== '--offline');
+// --offline 或 OFFLINE=1：只跑离线单测 + 密钥扫描，零网络请求
+const OFFLINE_ONLY = ARGS.includes('--offline') ||
+  process.env.OFFLINE === '1';
+// 离线模式必须在任何 createClient/请求之前锁死网络
+if (OFFLINE_ONLY) blockNetwork('离线模式（--offline / OFFLINE=1）');
 const BASE = process.env.API_BASE || 'http://localhost:8787';
 const TIMEOUT = Number(process.env.API_TIMEOUT_MS) || 15000;
 const ONLY = (process.env.ONLY || '').split(',').map((s) => s.trim())
@@ -2152,6 +2164,22 @@ async function budgetReport(pre) {
 }
 
 async function main() {
+  if (BAD_ARGS.length) {
+    log(`✘ 不认识的参数：${BAD_ARGS.join(' ')}（只支持 --offline）`);
+    process.exitCode = 1;
+    return;
+  }
+  if (OFFLINE_ONLY) {
+    log(`== 考拉食堂测试 · 仅离线（零网络请求；API_BASE=${BASE} 不会被访问）==`);
+    await runOfflineTests(runner);
+    await test('离线模式：全程零网络请求（http 助手/fetch 已锁死）',
+      { api: '离线·自检' }, () => {
+        assert.deepEqual(blockedAttempts(), [], '离线模式下有代码尝试联网');
+      });
+    const { failed } = runner.summary();
+    process.exitCode = failed ? 1 : 0;
+    return;
+  }
   log(`== 考拉食堂接口测试  base=${BASE}  单张上限=${LIMIT_TXT}` +
     `  模式=${FULL ? 'FULL' : '精简（默认）'}` +
     (ONLY.length ? `  ONLY=${ONLY.join(',')}` : '') + ' ==');

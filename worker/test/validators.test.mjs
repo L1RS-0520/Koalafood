@@ -14,6 +14,10 @@ import {
   LEAN_OPS_BUDGET, MIN_REMAINING, isLocal8787, fullGuard, preflight, opsUsed,
 } from './lib/budget.mjs';
 import { createRunner, redact, registerSecret } from './lib/runner.mjs';
+import { spawnSync } from 'node:child_process';
+import { createServer } from 'node:net';
+import { isNetworkBlocked }
+  from './lib/http.mjs';
 
 const load = (f) => JSON.parse(readFileSync(
   new URL(`./fixtures/${f}`, import.meta.url), 'utf8'));
@@ -271,6 +275,78 @@ export async function runOfflineTests(runner) {
     assert.equal(redact(`key=${k};x=${k}`), 'key=***;x=***');
   });
 
+  // 密钥扫描：test/ 里不得出现 CHEF_KEY 的值、dev 登录 cookie 字面量，
+  // 也不得有 cookie/jar 文件。密钥运行时从 worker/.dev.vars 读，只放内存。
+  await test('密钥扫描：test/ 无 CHEF_KEY 值、cookie 字面量、cookie/jar 文件',
+    sec, () => {
+      const key = readChefKeyForScan();
+      if (key) registerSecret(key);
+      const cookieLit = ['koala_dev_auth', '='].join('');
+      const root = fileURLToPath(testDir);
+      const hits = [];
+      for (const f of listFiles(root)) {
+        const rel = f.slice(root.length);
+        if (/cookie|jar/i.test(rel.split('/').pop())) {
+          hits.push(`${rel}：疑似 cookie/jar 文件`);
+        }
+        const text = readFileSync(f, 'utf8');
+        if (key && text.includes(key)) hits.push(`${rel}：含 CHEF_KEY 值`);
+        if (text.includes(cookieLit)) hits.push(`${rel}：含 cookie 字面量`);
+      }
+      assert.deepEqual(hits, [], '发现疑似泄密（内容已脱敏）');
+      soft(Boolean(key), '未读到 worker/.dev.vars 的 CHEF_KEY，只扫了 cookie');
+    });
+  await test('网络锁：blockNetwork 后 http 助手和 fetch 都抛错', sec,
+    async () => {
+      if (isNetworkBlocked()) return; // 已在离线模式里，由总自检覆盖
+      // 子进程里验证，避免锁死本进程（在线模式还要联网）
+      const code = `import('${new URL('./lib/http.mjs', import.meta.url)}')
+        .then(async (h) => { h.blockNetwork('单测');
+          const c = h.createClient({ base: 'http://127.0.0.1:1',
+            timeoutMs: 100 });
+          let n = 0;
+          try { await c.req('GET', '/x'); } catch (e) {
+            if (e instanceof h.NetworkBlockedError) n++; }
+          try { await fetch('http://127.0.0.1:1/'); } catch (e) {
+            if (e instanceof h.NetworkBlockedError) n++; }
+          process.exit(n === 2 && h.blockedAttempts().length === 2
+            ? 0 : 1); });`;
+      const r = spawnSync(process.execPath, ['--input-type=module', '-e',
+        code], { encoding: 'utf8', timeout: 10000 });
+      assert.equal(r.status, 0, `子进程失败：${r.stderr.slice(0, 200)}`);
+    });
+  await test('离线自检：--offline + API_BASE=http://127.0.0.1:1 → exit 0，' +
+    '零连接', sec, async () => {
+    if (process.env.KOALA_OFFLINE_SELFTEST === '1') {
+      return; // 防止子进程里递归
+    }
+    // 本机起一个监听器数连接；子进程把 API_BASE 指向它和 127.0.0.1:1
+    let conns = 0;
+    const srv = createServer((s) => { conns += 1; s.destroy(); });
+    await new Promise((res) => srv.listen(0, '127.0.0.1', res));
+    const port = srv.address().port;
+    try {
+      for (const base of ['http://127.0.0.1:1', `http://127.0.0.1:${port}`]) {
+        const r = await new Promise((res) => {
+          const env = { ...process.env, API_BASE: base,
+            KOALA_OFFLINE_SELFTEST: '1' };
+          delete env.OFFLINE;
+          const out = spawnSync(process.execPath, [apiTest, '--offline'],
+            { env, encoding: 'utf8', timeout: 60000 });
+          res(out);
+        });
+        assert.equal(r.status, 0, `${base}：退出码 ${r.status}\n` +
+          redact(r.stdout.split('\n').filter((l) => /FAIL|✘/.test(l))
+            .join('\n')).slice(0, 400));
+        assert.match(r.stdout, /零网络请求/);
+        assert.match(r.stdout, /离线模式：全程零网络请求/);
+      }
+      assert.equal(conns, 0, `离线模式仍向本机监听端口发起了 ${conns} 次连接`);
+    } finally {
+      srv.close();
+    }
+  });
+
   // 厨驼示例菜谱（只读）用质量校验器自检；不合格记 WARN
   const dir = new URL('../../../recipes/', import.meta.url);
   await test('示例菜谱 recipes/*.json 质量自检（只读，WARN）', o, () => {
@@ -281,6 +357,33 @@ export async function runOfflineTests(runner) {
       soft(errs.length === 0, `${f}：${errs.join('；')}`);
     }
   });
+}
+
+const testDir = new URL('./', import.meta.url);
+const apiTest = fileURLToPath(new URL('./api.test.mjs', import.meta.url));
+function listFiles(root) {
+  const out = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = `${d}${e.name}`;
+      if (e.isDirectory()) walk(`${p}/`);
+      else out.push(p);
+    }
+  };
+  walk(root);
+  return out;
+}
+function readChefKeyForScan() {
+  const f = new URL('../.dev.vars', import.meta.url);
+  if (!existsSync(f)) return null;
+  for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*(?:export\s+)?CHEF_KEY\s*=\s*(.*?)\s*$/);
+    if (!m) continue;
+    let v = m[1];
+    if (/^(['"]).*\1$/.test(v)) v = v.slice(1, -1);
+    return v || null;
+  }
+  return null;
 }
 
 const self = fileURLToPath(import.meta.url);

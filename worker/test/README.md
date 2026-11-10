@@ -49,3 +49,12 @@ STRICT=1 node test/api.test.mjs     # WARN（推断类检查）也算失败
 - storage 结构：`{store, photo_count, capacity:{used_bytes, limit_bytes, percent, level,
   photos_left}, daily_ops:{used, limit}}`；level 只按字节比例推导（<80 ok / ≥80 warn /
   ≥95 danger，'full' 非法），percent 保留 1 位小数，1024 进制。
+
+## 仅离线：`--offline` / `OFFLINE=1`（2026-11-09 修复）
+- `node test/api.test.mjs --offline`（或 `OFFLINE=1 node test/api.test.mjs`）只跑离线单测
+  和密钥扫描，**零网络请求**：参数解析在任何请求之前，离线时 http 助手和全局 fetch
+  被锁死，一调用就抛错，结束时还断言被拦请求数为 0。
+- 不认识的参数（如 `--offlnie`）直接报错退出 1，不会悄悄跑在线用例。
+- 永久自检（在离线单测里）：子进程以 `--offline` 跑本脚本，API_BASE 分别指向
+  `http://127.0.0.1:1` 和本机一个临时监听端口，要求 exit 0 且该端口收到 0 次连接。
+- 密钥扫描：test/ 里不得出现 CHEF_KEY 的值、dev 登录 cookie 字面量、cookie/jar 文件。

@@ -28,9 +28,29 @@ export class CookieJar {
 
 export class NetworkError extends Error {}
 
+// 离线模式护栏：blockNetwork() 之后，任何 req() 以及全局 fetch 都直接抛错
+let networkBlocked = null;
+const attempts = [];
+export class NetworkBlockedError extends Error {}
+export function blockNetwork(reason = '离线模式') {
+  networkBlocked = reason;
+  globalThis.fetch = async (u) => {
+    attempts.push(`fetch ${u}`);
+    throw new NetworkBlockedError(`${reason}：禁止任何网络请求（fetch）`);
+  };
+}
+export const isNetworkBlocked = () => networkBlocked !== null;
+// 被拦下的请求记录（离线自检断言它为空）
+export const blockedAttempts = () => [...attempts];
+
 export function createClient({ base, timeoutMs }) {
   // opts: json | form | body, headers, jar(null=不带 cookie), timeout
   async function req(method, path, opts = {}) {
+    if (networkBlocked) {
+      attempts.push(`${method} ${path}`);
+      throw new NetworkBlockedError(
+        `${networkBlocked}：http 助手被调用（${method} ${path}），已拒绝`);
+    }
     const headers = { ...(opts.headers || {}) };
     let body;
     if (opts.json !== undefined) {
