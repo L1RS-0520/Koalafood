@@ -34,6 +34,10 @@ export async function opsToday(db: D1Database): Promise<number> {
   return r?.ops ?? 0;
 }
 
+export async function opsRemaining(env: Env): Promise<number> {
+  return Math.max(0, kvDailyLimit(env) - (await opsToday(env.DB)));
+}
+
 export async function addOps(db: D1Database, n = 1) {
   await db.prepare("INSERT INTO kv_usage(day, ops) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET ops = ops + excluded.ops")
     .bind(utcDay(), n).run();

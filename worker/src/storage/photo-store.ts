@@ -4,7 +4,7 @@
  * 键：uuid.扩展名（dish_photos.r2_key 列保存，列名沿用 r2_key，实际是“存储键”）。
  */
 import type { Env } from "../env.ts";
-import { StorageQuotaError, addOps, checkOps } from "./usage.ts";
+import { StorageQuotaError } from "./usage.ts";
 export { StorageQuotaError };
 
 /**
@@ -46,15 +46,13 @@ export class R2PhotoStore implements PhotoStore {
   async delete(key: string) { await this.bucket.delete(key); }
 }
 
-/** KV：键值存储（默认）。值 ≤25 MiB；内容类型放 metadata。每次 put/delete 都计入 kv_usage，超上限先拦 */
+/** KV：键值存储（默认）。值 ≤25 MiB；内容类型放 metadata。次数计数（kv_usage）在调用方按整批做，见 index.ts putPhotos/removeStored */
 export class KvPhotoStore implements PhotoStore {
   readonly kind = "kv" as const;
-  constructor(private kv: KVNamespace, private env: Env) {}
+  constructor(private kv: KVNamespace) {}
   async put(key: string, bytes: ArrayBuffer, contentType: string) {
-    await checkOps(this.env, 1);
     try { await this.kv.put(`photo:${key}`, bytes, { metadata: { contentType, size: bytes.byteLength } }); }
     catch (e) { throw toStorageError(e); }
-    finally { await addOps(this.env.DB, 1); } // 失败的请求也可能被 KV 计数，保守起见都记
   }
   async get(key: string) {
     const r = await this.kv.getWithMetadata<{ contentType?: string; size?: number }>(`photo:${key}`, "arrayBuffer");
@@ -62,10 +60,8 @@ export class KvPhotoStore implements PhotoStore {
     return { body: r.value, contentType: r.metadata?.contentType ?? "application/octet-stream", etag: `"${key}"`, size: r.value.byteLength };
   }
   async delete(key: string) {
-    await checkOps(this.env, 1);
     try { await this.kv.delete(`photo:${key}`); }
     catch (e) { throw toStorageError(e); }
-    finally { await addOps(this.env.DB, 1); }
   }
 }
 
@@ -95,7 +91,7 @@ export function getPhotoStore(env: Env): PhotoStore {
   }
   if (kind === "kv") {
     if (!env.PHOTOS_KV) throw new Error("PHOTO_STORE=kv 但没有绑定 PHOTOS_KV（KV）");
-    return new KvPhotoStore(env.PHOTOS_KV, env);
+    return new KvPhotoStore(env.PHOTOS_KV);
   }
   if (kind === "d1") return new D1PhotoStore(env.DB);
   throw new Error(`PHOTO_STORE 只能是 r2、kv、d1，现在是 ${kind}`);

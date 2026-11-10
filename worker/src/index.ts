@@ -12,7 +12,7 @@ import { toDish, toTask, draftColumns, getDish, getPhotos, getChefEnabled, type 
 import { normalizeDraft, type RecipeDraft } from "./generator/draft.ts";
 import { mockDraft } from "./generator/mock-chef.ts";
 import { getPhotoStore } from "./storage/photo-store.ts";
-import { StorageQuotaError, StorageFullError, checkBeforeWrite, storageReport } from "./storage/usage.ts";
+import { StorageQuotaError, StorageFullError, checkBeforeWrite, storageReport, addOps, opsRemaining, utcDay } from "./storage/usage.ts";
 import { getViewer, accessConfigured, devAuthEnabled, DEV_COOKIE, type Viewer } from "./auth.ts";
 
 type Vars = { viewer: Viewer };
@@ -90,55 +90,77 @@ async function readPhotos(form: FormData, min: number, max: number): Promise<Pho
   }
   return out;
 }
+/**
+ * 写照片。Workers 免费版每次请求最多 50 次 D1 查询，所以 KV 次数在这里按“整批”计：
+ * 写前预判一次（容量 507 → 次数 429），写完一次性 addOps，而不是每张照片各查各记。
+ */
 async function putPhotos(env: Env, dishId: string, photos: PhotoInfo[], startPos: number) {
   const store = getPhotoStore(env);
-  // 写任何照片之前：先容量（507），再每天次数（429）
   await checkBeforeWrite(env, store.kind, photos.reduce((s, p) => s + p.bytes.byteLength, 0), photos.length);
   const now = nowIso();
   const rows: PhotoRow[] = [];
+  let attempted = 0;
   try {
     for (const [i, p] of photos.entries()) {
       const key = `${crypto.randomUUID()}.${p.ext}`;
+      attempted++; // 失败的请求也可能被 KV 计数，保守起见都记
       await store.put(key, p.bytes, p.type);
       rows.push({ id: crypto.randomUUID(), dish_id: dishId, r2_key: key, content_type: p.type, size: p.bytes.byteLength, position: startPos + i, created_at: now });
     }
   } catch (e) {
+    if (store.kind === "kv") await addOps(env.DB, attempted);
     await removeStored(env, rows.map((r) => ({ key: r.r2_key, size: r.size })), "上传中途失败的清理");
     throw e;
   }
+  if (store.kind === "kv") await addOps(env.DB, attempted);
   return rows;
 }
 
-/** 删存储里的照片：尽力而为；失败（含额度用完）记进 orphan_photos，下次写入时后台重试。永不抛错 */
+/**
+ * 删存储里的照片：尽力而为，永不抛错。KV 今天剩余次数不够的、或删除报错的，
+ * 一次性批量记进 orphan_photos（含 size），下次写入时后台重试。
+ */
 async function removeStored(env: Env, items: { key: string; size: number }[], reason: string) {
+  if (!items.length) return;
   const store = getPhotoStore(env);
   const now = nowIso();
-  for (const { key, size } of items) {
-    try { await store.delete(key); }
-    catch (e) {
-      console.warn("照片删除失败，记为孤儿待重试", key, (e as Error).message);
-      try {
-        await env.DB.prepare(`INSERT INTO orphan_photos(key, store, size, reason, attempts, created_at) VALUES (?,?,?,?,0,?)
-          ON CONFLICT(key) DO UPDATE SET reason=excluded.reason`).bind(key, store.kind, size, `${reason}：${(e as Error).message}`.slice(0, 300), now).run();
-      } catch (e2) { console.error("记录孤儿照片失败", key, (e2 as Error).message); }
-    }
+  const budget = store.kind === "kv" ? await opsRemaining(env) : Infinity;
+  const orphans: { key: string; size: number; why: string }[] = [];
+  let attempted = 0;
+  for (const [i, it] of items.entries()) {
+    if (i >= budget) { orphans.push({ ...it, why: "今天 KV 写入/删除额度已用完" }); continue; }
+    attempted++;
+    try { await store.delete(it.key); }
+    catch (e) { orphans.push({ ...it, why: (e as Error).message }); }
   }
+  if (store.kind === "kv" && attempted) await addOps(env.DB, attempted);
+  if (!orphans.length) return;
+  console.warn(`照片删除失败 ${orphans.length} 张，记为孤儿待重试`);
+  try {
+    await env.DB.batch(orphans.map((o) => env.DB.prepare(`INSERT INTO orphan_photos(key, store, size, reason, attempts, created_at) VALUES (?,?,?,?,0,?)
+      ON CONFLICT(key) DO UPDATE SET reason=excluded.reason`).bind(o.key, store.kind, o.size, `${reason}：${o.why}`.slice(0, 300), now)));
+  } catch (e2) { console.error("记录孤儿照片失败", (e2 as Error).message); }
 }
 
-/** 顺手重试清理孤儿照片（每次最多 20 个），在写入请求结束后后台执行 */
+/** 顺手重试清理孤儿照片（每次最多 20 个、不超过今天剩余 KV 次数），在写入请求结束后后台执行 */
 async function retryOrphans(env: Env) {
-  const r = await env.DB.prepare("SELECT key FROM orphan_photos ORDER BY created_at LIMIT 20").all<{ key: string }>();
-  if (!r.results.length) return;
   const store = getPhotoStore(env);
+  const budget = Math.min(20, store.kind === "kv" ? await opsRemaining(env) : 20);
+  if (budget <= 0) return;
+  const r = await env.DB.prepare("SELECT key FROM orphan_photos ORDER BY created_at LIMIT ?").bind(budget).all<{ key: string }>();
+  if (!r.results.length) return;
+  const done: string[] = [], failed: string[] = [];
   for (const { key } of r.results) {
-    try {
-      await store.delete(key);
-      await env.DB.prepare("DELETE FROM orphan_photos WHERE key=?").bind(key).run();
-    } catch (e) {
-      await env.DB.prepare("UPDATE orphan_photos SET attempts=attempts+1, last_try_at=? WHERE key=?").bind(nowIso(), key).run();
-      if (e instanceof StorageQuotaError) break; // 额度没恢复，别再浪费
-    }
+    try { await store.delete(key); done.push(key); }
+    catch (e) { failed.push(key); if (e instanceof StorageQuotaError) break; }
   }
+  const now = nowIso();
+  const stmts = [
+    ...done.map((k) => env.DB.prepare("DELETE FROM orphan_photos WHERE key=?").bind(k)),
+    ...failed.map((k) => env.DB.prepare("UPDATE orphan_photos SET attempts=attempts+1, last_try_at=? WHERE key=?").bind(now, k)),
+  ];
+  if (store.kind === "kv") stmts.push(env.DB.prepare("INSERT INTO kv_usage(day, ops) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET ops = ops + excluded.ops").bind(utcDay(), done.length + failed.length));
+  if (stmts.length) await env.DB.batch(stmts);
 }
 const insertPhotoStmts = (db: D1Database, rows: PhotoRow[]) => rows.map((r) =>
   db.prepare("INSERT INTO dish_photos(id,dish_id,r2_key,content_type,size,position,created_at) VALUES (?,?,?,?,?,?,?)")
