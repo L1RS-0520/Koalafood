@@ -6,7 +6,7 @@
   /* —— 品牌色 —— */
   --primary: #ff7a2f; /* 番茄橙：主按钮、选中态（橙底只配墨黑字） */
   --primary-dark: #e05a12; /* 按下态 */
-  --link: #c2410c; /* 白底链接文字 */
+  --link: #a8380a; /* 全站链接色 + 80% 提示小字（设计 2026-11-10 定；白底 6.49:1、#FFE9A8 上 5.40:1） */
   --secondary: #7cc6a4; /* 桉叶绿：次按钮、分类、标签 */
   --secondary-dark: #4fa982;
   --accent: #ffd23f; /* 蛋黄：高亮、徽章、时间图标 */
@@ -31,6 +31,9 @@
   --danger-btn-bg: #ee5a5f; /* 墨字 5.15:1；原来用 --danger #e5484d 只有 4.41:1 */
   --danger-btn-fg: var(--ink);
 
+  /* —— 红底白字小标签（照片红条、空草稿标签、错误圆点；设计 2026-11-10 定）：只改这个变量 —— */
+  --danger-tag-bg: #c42b31;
+
   /* —— 设置页照片柜百分比文字色（设计走查 P1-4）：颜色只看后端 level —— */
   --storage-pct-ok: #2f7d57;
   --storage-pct-warn: #8a5600;
@@ -44,10 +47,10 @@
   --tag-gray: #eeeef2;
 
   /* —— 字体 —— */
-  --font-display: 'ZCOOL KuaiLe', 'Noto Sans SC', 'Noto Sans CJK SC', 'PingFang SC', sans-serif;
-  --font-body: 'Noto Sans SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', system-ui, sans-serif;
-  --font-num: 'Baloo 2', 'Noto Sans SC', 'Noto Sans CJK SC', sans-serif;
+  /* 正文不打包字体，用系统中文黑体（走查 P2-17，码驼 11-10 定）；ZCOOL / Baloo 后面的回退也统一成这一串 */
+  --font-display: 'ZCOOL KuaiLe', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-body: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-num: 'Baloo 2', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
 
   /* —— 字号阶梯（字号 / 行高）—— */
   --fs-h1: 32px;

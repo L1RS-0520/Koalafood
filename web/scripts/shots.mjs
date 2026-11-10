@@ -125,6 +125,18 @@ const shotsR2 = [
   ['设置-容量-正常', '/kitchen/settings', M, { used: 0.3 * 996147200 }, false],
   ['设置-容量-80', '/kitchen/settings', M, { used: 0.86 * 996147200, ops: 850 }, true],
   ['设置-容量-95', '/kitchen/settings', M, { used: 0.96 * 996147200 }, true],
+  ['改色-详情-空草稿红标签', '/dishes/seed-bfast', M, {}, false],
+  ['改色-上传-413照片红条', '/kitchen/upload', M, {}, false, async (p) => {
+    await fillUpload(p, '超大番茄炒蛋')
+    await p.locator('#f-photos').scrollIntoViewIfNeeded()
+    await p.waitForTimeout(600)
+  }],
+  ['改色-上传-必填错误圆点', '/kitchen/upload', M, {}, false, async (p) => {
+    await p.locator('button[type=submit]').click()
+    await p.waitForTimeout(600)
+    await p.locator('#f-name').scrollIntoViewIfNeeded()
+  }],
+  ['改色-上传-80提示小字', '/kitchen/upload', M, { used: 0.86 * 996147200 }, false],
   ['编辑-逐条-点击区', '/kitchen/dishes/seed-tomato/edit', M, {}, false, async (p) => {
     await p.locator('#f-photos, .photos').first().scrollIntoViewIfNeeded().catch(() => {})
     await p.waitForTimeout(300)

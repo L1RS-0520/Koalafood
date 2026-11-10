@@ -453,7 +453,7 @@
   top: 34px;
   padding: 2px 4px;
   border-radius: 6px;
-  background: var(--danger);
+  background: var(--danger-tag-bg);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -829,7 +829,7 @@
   box-shadow: 5px 5px 0 var(--danger);
 }
 .chef-msg--alert .chef-msg-label {
-  background: var(--danger);
+  background: var(--danger-tag-bg);
   color: #fff;
 }
 /* 大王备注：黄色方形“旁白框”（无圆角） */
@@ -1854,7 +1854,7 @@
   display: block;
   margin-top: 4px;
   font-size: 13px;
-  color: #c2410c;
+  color: var(--link);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
