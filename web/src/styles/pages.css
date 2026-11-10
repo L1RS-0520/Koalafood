@@ -1661,7 +1661,7 @@
   padding-left: 8px;
   padding-right: 8px;
   font-size: 16px;
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: none;
 }
 
 /* ========== 设置页 ========== */
@@ -1795,7 +1795,7 @@
   font-size: 20px;
   line-height: 1.4;
   transform: translateX(-50%) rotate(-4deg);
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: none;
 }
 .kitchen-closed .bubble h2 {
   font-size: 22px;
@@ -2098,7 +2098,7 @@
   border: 3px solid var(--danger);
   border-radius: 14px;
   background: color-mix(in srgb, var(--danger) 6%, var(--surface));
-  box-shadow: 3px 3px 0 var(--danger);
+  box-shadow: none;
   color: var(--storage-pct-danger);
   font-size: 13px;
   line-height: 1.55;
@@ -2186,7 +2186,7 @@
   padding: 10px 12px;
   border: var(--line);
   border-radius: 14px;
-  box-shadow: 3px 3px 0 var(--ink);
+  box-shadow: none;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -2213,7 +2213,7 @@
 .cap-alert--danger {
   border-color: var(--danger);
   background: #ffe1e2;
-  box-shadow: 3px 3px 0 var(--danger);
+  box-shadow: none;
   color: #b4232a;
 }
 .cap-alert--danger small {

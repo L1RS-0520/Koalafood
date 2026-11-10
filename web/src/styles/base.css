@@ -1,4 +1,4 @@
-/* 基础：重置、页面底色网点、排版、通用动效 */
+/* 基础：重置、纸色底、排版、通用动效 */
 *,
 *::before,
 *::after {
@@ -111,13 +111,12 @@ legend {
 /* 页面容器：手机优先，桌面居中 */
 .page {
   width: 100%;
-  max-width: 1120px;
+  max-width: calc(var(--content-max) + 80px);
   margin: 0 auto;
-  padding: 0 var(--page-x) calc(96px + var(--safe-b));
+  padding: 0 var(--page-x) calc(32px + var(--safe-b));
 }
 .page--narrow,
-.page--form,
-.page--detail {
+.page--form {
   max-width: 720px;
 }
 
