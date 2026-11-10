@@ -1795,6 +1795,140 @@
   font-size: 12px;
   color: var(--text-2);
 }
+/* round-2：不合格照片进网格标红、每张压缩进度（设计 ①②③；颜色只用已有变量） */
+.photo-tile.is-bad .photo-no {
+  background: var(--danger-tag-bg);
+}
+.photo-ef {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+}
+.photo-file {
+  /* 底部留给红条（bottom 34）和挪动工具条（30），文件图标和文件名放在上半格 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 4px 6px 56px;
+  background: var(--tag-gray);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+.photo-file-ext {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 38px;
+  border: var(--line-md);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-weight: 800;
+}
+.photo-file-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.photo-pr {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 800;
+}
+.photo-ring {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: var(--line-md);
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) var(--p, 0%), color-mix(in srgb, var(--surface) 35%, transparent) 0);
+}
+.photo-ring b {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--surface);
+  font-family: var(--font-num);
+  font-size: 11px;
+}
+.photo-tile.is-pending .photo-tools,
+.photo-tile.is-pending .photo-grip {
+  visibility: hidden;
+}
+.photo-problems {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 3px solid var(--danger);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+  box-shadow: 3px 3px 0 var(--danger);
+  color: var(--storage-pct-danger);
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 700;
+}
+.photo-problems-title {
+  display: block;
+  margin-bottom: 2px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--storage-pct-danger); /* 设计写 --danger，但 16px 在浅红底上只有约 4.2:1，用同色系深红 #b4232a（6.5:1） */
+}
+.photo-problems li {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 2px dashed color-mix(in srgb, var(--danger) 30%, var(--surface));
+}
+.photo-problems li:last-child {
+  border-bottom: 0;
+}
+.photo-problems-no {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: var(--line-sm);
+  border-radius: 50%;
+  background: var(--danger-tag-bg);
+  color: var(--surface);
+  font-family: var(--font-num);
+  font-size: 12px;
+}
+.photo-problems em {
+  display: block;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.submit-bar .btn.is-blocked {
+  opacity: 0.55;
+}
 .del-preview img {
   width: 100%;
   margin: 2px 0 0;

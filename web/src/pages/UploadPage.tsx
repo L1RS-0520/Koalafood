@@ -6,19 +6,28 @@ import { BasicFields, validateBasics, type BasicErrors, type Basics } from '../c
 import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
-import { checkFiles, PhotoManager, type PhotoItem } from '../components/PhotoManager'
+import { PhotoManager, type PhotoItem } from '../components/PhotoManager'
 import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/StorageMeter'
 import { cleanContent, emptyContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
 import { BusyOverlay, Confirm, LeaveGuard, TopBar, Spinner } from '../components/ui'
 import { useApp } from '../lib/app'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { clearDraft, hasText, loadPhotos, loadText, savePhotos, saveText } from '../lib/uploadDraft'
-import { compressAll } from '../lib/compress'
+import { compressImage, compressProblem, CompressError, mb1, precheckPhoto, PROBLEM_TEXT, type PhotoProblem } from '../lib/compress'
 import { metaErrors } from '../lib/editPatch'
 import { cx, photoIndexOf, tooLargeText } from '../lib/util'
 
 interface LocalPhoto extends PhotoItem {
+  /** 要上传的文件：压缩完是压缩后的；不合格的是原文件（不会上传） */
   file: File
+}
+
+/** mock 模式专用：文件名含「压不下」时模拟“压缩后仍 1.3MB”（设计 ③），方便本地预览和自测；线上不生效 */
+const MOCK_TOO_BIG = import.meta.env.MODE === 'mock' ? '压不下' : null
+
+/** 保存按钮在有红图时的文案（设计 ①③：1 张写“先换掉第 N 张照片”，多张写“先换掉 N 张有问题的照片”） */
+export function badButtonText(badIdx: number[]): string {
+  return badIdx.length === 1 ? `先换掉第 ${badIdx[0] + 1} 张照片` : `先换掉 ${badIdx.length} 张有问题的照片`
 }
 
 export function UploadPage() {
@@ -63,7 +72,7 @@ export function UploadPage() {
         setContent(t.content)
         setEditorMode(t.editorMode)
       }
-      if (files.length) setPhotos(files.map((f, i) => ({ key: `r-${i}-${f.name}`, url: URL.createObjectURL(f), file: f })))
+      if (files.length) setPhotos(files.map((f, i) => ({ key: `r-${i}-${f.name}`, url: URL.createObjectURL(f), file: f, name: f.name, size: f.size })))
       if (hasText(t) || files.length) app.toast('已恢复上次没传完的内容', 'info')
       else if (presetCategory) setBasics((b) => ({ ...b, category: presetCategory }))
       setRestored(true)
@@ -78,11 +87,12 @@ export function UploadPage() {
     return () => clearTimeout(t)
   }, [basics, mode, editorMode, content, restored, done])
   useEffect(() => {
-    if (restored && !done) savePhotos(photos.map((p) => p.file))
+    // 只存压缩好的合格照片（不合格的、还没压完的不进本机草稿）
+    if (restored && !done && !photos.some((p) => p.status)) savePhotos(photos.filter((p) => !p.problem).map((p) => p.file))
   }, [photos, restored, done])
   const [askClear, setAskClear] = useState(false)
   const clearAll = async () => {
-    photos.forEach((p) => URL.revokeObjectURL(p.url))
+    photos.forEach((p) => p.url && URL.revokeObjectURL(p.url))
     setPhotos([])
     setBasics({ name: '', category: '', note: '' })
     setContent(emptyContent())
@@ -100,22 +110,55 @@ export function UploadPage() {
   const blocker = useUnsavedGuard(dirty && !busy)
 
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  const patch = (key: string, p: Partial<LocalPhoto>) => setPhotos((ps) => ps.map((x) => (x.key === key ? { ...x, ...p } : x)))
+  /**
+   * 选图：每张先预检（HEIC / 格式 / 超 10MB），不合格的直接进网格标红；合格的先“排队中”占位，再逐张压缩。
+   * 压完仍 >1MB 或打不开的也标红留在网格里，不上传，可以删。超过 9 张的部分不加入，给一句提示。
+   */
   const addFiles = async (files: File[]) => {
-    const { ok, errors: errs } = checkFiles(files, photos.length)
-    setPhotoErr(errs.length ? errs.join('；') : null)
-    if (!ok.length) return
-    const r = await compressAll(ok, (done, total) => setProgress({ done, total }))
-    setProgress(null)
-    const all = [...errs, ...r.errors]
-    setPhotoErr(all.length ? all.join('；') : null)
-    if (r.files.length) {
-      setPhotos((ps) => [...ps, ...r.files.map((f, i) => ({ key: `${Date.now()}-${i}-${f.name}`, url: URL.createObjectURL(f), file: f }))])
+    const room = LIMITS.photosMax - photos.length
+    const take = files.slice(0, Math.max(0, room))
+    setPhotoErr(files.length > take.length ? `最多 ${LIMITS.photosMax} 张照片，多出来的 ${files.length - take.length} 张没加上` : null)
+    if (!take.length) return
+    const stamp = Date.now()
+    const added: LocalPhoto[] = take.map((f, i) => {
+      const problem = precheckPhoto(f)
+      return {
+        key: `${stamp}-${i}-${f.name}`,
+        url: problem?.noPreview ? '' : URL.createObjectURL(f),
+        name: f.name,
+        file: f,
+        originalSize: f.size,
+        problem,
+        status: problem ? undefined : 'queued',
+      }
+    })
+    setPhotos((ps) => [...ps, ...added])
+    const queue = added.filter((p) => !p.problem)
+    if (!queue.length) return
+    setProgress({ done: 0, total: queue.length })
+    for (let n = 0; n < queue.length; n++) {
+      const it = queue[n]
+      patch(it.key, { status: 'compressing', pct: 0 })
+      try {
+        if (MOCK_TOO_BIG && it.file.name.includes(MOCK_TOO_BIG)) throw new CompressError('TOO_BIG', 'mock', Math.round(1.3 * 1024 * 1024))
+        const r = await compressImage(it.file, (pct) => patch(it.key, { pct }))
+        const url = URL.createObjectURL(r.file)
+        URL.revokeObjectURL(it.url)
+        patch(it.key, { file: r.file, url, size: r.file.size, status: undefined, pct: undefined })
+      } catch (e) {
+        const problem: PhotoProblem = compressProblem(it.file.name, e)
+        if (problem.noPreview) URL.revokeObjectURL(it.url)
+        patch(it.key, { problem, status: undefined, pct: undefined, url: problem.noPreview ? '' : it.url })
+      }
+      setProgress({ done: n + 1, total: queue.length })
     }
+    setProgress(null)
   }
   const removePhoto = (key: string) =>
     setPhotos((ps) => {
       const p = ps.find((x) => x.key === key)
-      if (p) URL.revokeObjectURL(p.url)
+      if (p?.url) URL.revokeObjectURL(p.url)
       setServerBad((m) => {
         const n = { ...m }
         delete n[key]
@@ -132,19 +175,25 @@ export function UploadPage() {
       return n
     })
 
-  /** 提交前逐张校验（压缩后应 ≤1MB 且为 webp/jpeg/png），不合格的标在那张图上 */
-  const badOf = (f: File): string | null => {
-    if (!['image/webp', 'image/jpeg', 'image/png'].includes(f.type)) return '格式不对'
-    if (f.size > LIMITS.uploadMaxBytes) return '超过 1MB'
+  /** 每张照片的问题：选图/压缩时标的 → 上传时 413 标的 → 兜底检查（压缩后应 ≤1MB 且为 webp/jpeg/png） */
+  const problemOf = (p: LocalPhoto): PhotoProblem | null => {
+    if (p.problem) return p.problem
+    if (serverBad[p.key]) return { kind: 'serverTooLarge', tag: PROBLEM_TEXT.tagServerTooLarge, detail: serverBad[p.key], meta: `${p.name ?? p.file.name} · ${mb1(p.file.size)}` }
+    if (p.status) return null
+    if (!['image/webp', 'image/jpeg', 'image/png'].includes(p.file.type))
+      return { kind: 'type', tag: PROBLEM_TEXT.tagType, detail: `「${p.name ?? p.file.name}」格式不对，换一张吧`, noPreview: true }
+    if (p.file.size > LIMITS.uploadMaxBytes)
+      return { kind: 'compressedTooBig', tag: `压完 ${mb1(p.file.size)}`, detail: PROBLEM_TEXT.compressedTooBig, meta: `${p.name ?? p.file.name} · 压缩后 ${mb1(p.file.size)}` }
     return null
   }
+  const badIdx = photos.map((p, i) => (problemOf(p) ? i : -1)).filter((i) => i >= 0)
+  const badCount = badIdx.length
   const validate = (): BasicErrors => {
     const e = validateBasics(basics)
-    if (photos.length === 0) e.photos = progress ? '照片还在压缩，稍等一下' : '至少要传 1 张照片'
-    else {
-      const bad = photos.map((p, i) => [i, badOf(p.file)] as const).filter(([, b]) => b)
-      if (bad.length) e.photos = `第 ${bad.map(([i]) => i + 1).join('、')} 张照片不合格，删掉换一张吧`
-    }
+    const good = photos.filter((p) => !problemOf(p))
+    if (photos.length === 0) e.photos = '至少要传 1 张照片'
+    else if (progress || photos.some((p) => p.status)) e.photos = '照片还在压缩，稍等一下'
+    else if (!good.length) e.photos = '至少要有 1 张能用的照片'
     return e
   }
   // 提交过一次后，实时更新错误
@@ -153,6 +202,12 @@ export function UploadPage() {
   }, [basics, photos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = async () => {
+    // 还有红图：不提交，提示并带到照片区（按钮看起来是灰的，但点了要有反应）
+    if (badCount > 0) {
+      app.toast(`${badButtonText(badIdx)}，删掉或换一张就能保存`, 'err')
+      document.getElementById('f-photos')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
     tried.current = true
     const e = validate()
     setErrors(e)
@@ -209,13 +264,9 @@ export function UploadPage() {
           const n = photoIndexOf(err.message)
           const idx = n ? [n - 1] : photos.map((p, i) => (p.file.size > LIMITS.uploadMaxBytes ? i : -1)).filter((i) => i >= 0)
           const marks: Record<string, string> = {}
-          idx.forEach((i) => photos[i] && (marks[photos[i].key] = '超过 1MB'))
+          idx.forEach((i) => photos[i] && (marks[photos[i].key] = `${tooLargeText(photos[i].file.size)}，删掉换一张吧`))
           setServerBad(marks)
-          setPhotoErr(
-            idx.length
-              ? idx.map((i) => `第 ${i + 1} 张：${tooLargeText(photos[i]?.file.size)}，删掉换一张吧`).join('；')
-              : tooLargeText(null),
-          )
+          setPhotoErr(idx.length ? null : tooLargeText(null))
         } else setPhotoErr(err.message)
         document.getElementById('f-photos')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
@@ -224,12 +275,20 @@ export function UploadPage() {
     }
   }
 
-  const photoItems = useMemo(
-    () => photos.map(({ key, url, file }) => ({ key, url, size: file.size, bad: serverBad[key] ?? (tried.current ? badOf(file) : null) })),
-    [photos, errors, serverBad], // eslint-disable-line react-hooks/exhaustive-deps
+  const photoItems = useMemo<PhotoItem[]>(
+    () =>
+      photos.map((p) => ({
+        key: p.key,
+        url: p.url,
+        name: p.name ?? p.file.name,
+        size: p.status ? undefined : p.size,
+        originalSize: p.originalSize,
+        status: p.status,
+        pct: p.pct,
+        problem: problemOf(p),
+      })),
+    [photos, serverBad], // eslint-disable-line react-hooks/exhaustive-deps
   )
-
-  const badCount = photoItems.filter((p) => p.bad).length
 
   return (
     <main className="page page--form">
@@ -325,14 +384,19 @@ export function UploadPage() {
         </section>
 
         <div className="submit-bar">
-          <button type="submit" className="btn btn--primary btn--lg btn--block" disabled={busy || !!progress || badCount > 0}>
+          <button
+            type="submit"
+            disabled={busy || !!progress}
+            aria-disabled={badCount > 0 || undefined}
+            className={cx('btn btn--primary btn--lg btn--block', badCount > 0 && 'is-blocked')}
+          >
             {progress ? (
               <>
                 <Spinner />
                 正在压缩照片…（{progress.done}/{progress.total}）
               </>
             ) : badCount > 0 ? (
-              <>先换掉 {badCount} 张有问题的照片</>
+              <>{badButtonText(badIdx)}</>
             ) : effMode === CREATE_MODE.chef ? (
               <>
                 <Icon name="chef" size={22} />
