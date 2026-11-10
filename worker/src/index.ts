@@ -2,18 +2,18 @@
  * 考拉食堂 Worker（接口约定 v2.3.2：读公开 /api/*，写入 /api/kitchen/*，厨驼 /api/chef/*）
  */
 import { Hono, type Context, type Next } from "hono";
-import { cors } from "hono/cors";
 import type { Env } from "./env.ts";
 import {
   ApiError, errorResponse, CATEGORIES, checkName, checkCategory, checkNote, checkShortText,
   readPhoto, tooLargeMessage, PHOTO_KEY_RE, safeEqual, nowIso, type PhotoInfo,
+  MAX_JSON_BYTES, bodyTooLargeMessage, type ErrorDetail,
 } from "./lib.ts";
 import { toDish, toTask, draftColumns, getDish, getPhotos, getChefEnabled, type DishRow, type PhotoRow } from "./db.ts";
-import { normalizeDraft, type RecipeDraft } from "./generator/draft.ts";
+import { normalizeDraft, type RecipeDraft, type NormalizeResult } from "./generator/draft.ts";
 import { mockDraft } from "./generator/mock-chef.ts";
 import { getPhotoStore } from "./storage/photo-store.ts";
 import { StorageQuotaError, StorageFullError, checkBeforeWrite, storageReport, addOps, opsRemaining, utcDay } from "./storage/usage.ts";
-import { getViewer, accessConfigured, devAuthEnabled, DEV_COOKIE, type Viewer } from "./auth.ts";
+import { getViewer, devAuthEnabled, DEV_COOKIE, type Viewer } from "./auth.ts";
 
 type Vars = { viewer: Viewer };
 type C = Context<{ Bindings: Env; Variables: Vars }>;
@@ -39,19 +39,31 @@ app.onError((err, c) => {
 });
 app.notFound((c) => errorResponse(c, new ApiError("NOT_FOUND", "没有这个接口")));
 
-// 开发期 CORS 放开（配置了 Access 的线上环境不放开）
+// v2.3.3 R1-06：不再发 CORS 头。线上同源（Worker 用 assets 托管前端）；本地前端 vite dev/preview
+// 把 /api 代理到后端（web/vite.config.ts 的 server/preview.proxy，前端一律 fetch 相对路径 /api…），
+// 浏览器看到的也是同源。以前「ACAO * + Allow-Credentials true」的组合是错的，整段去掉。
+// 所有 /api/* 响应（含错误、404、照片）都带 X-Content-Type-Options: nosniff。
 app.use("/api/*", async (c, next) => {
-  if (accessConfigured(c.env)) return next();
-  return cors({
-    origin: (o) => o || "*", credentials: true,
-    allowHeaders: ["Content-Type", "X-Chef-Key"], allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  })(c, next);
+  await next();
+  try { c.res.headers.set("X-Content-Type-Options", "nosniff"); }
+  catch { // 不可变的响应头：复制一份再设
+    c.res = new Response(c.res.body, c.res);
+    c.res.headers.set("X-Content-Type-Options", "nosniff");
+  }
 });
 
 app.use("/api/*", async (c, next) => { c.set("viewer", await getViewer(c.req.raw, c.env)); await next(); });
 
-async function readJson(c: C): Promise<Record<string, unknown>> {
-  const text = await c.req.text();
+/** maxBytes：超出 → 413 TOO_LARGE。先看 Content-Length（不读 body），没有再按实际读到的字节数 */
+async function readJson(c: C, maxBytes?: number): Promise<Record<string, unknown>> {
+  let text: string;
+  if (maxBytes) {
+    const cl = Number(c.req.header("Content-Length"));
+    if (Number.isFinite(cl) && cl > maxBytes) throw new ApiError("TOO_LARGE", bodyTooLargeMessage(cl));
+    const buf = await c.req.arrayBuffer();
+    if (buf.byteLength > maxBytes) throw new ApiError("TOO_LARGE", bodyTooLargeMessage(buf.byteLength));
+    text = new TextDecoder().decode(buf);
+  } else text = await c.req.text();
   if (!text.trim()) return {};
   let v: unknown;
   try { v = JSON.parse(text); } catch { throw new ApiError("VALIDATION", "请求内容不是合法的 JSON"); }
@@ -182,6 +194,7 @@ async function servePhoto(c: C, key: string) {
   h.set("Content-Type", obj.contentType);
   h.set("ETag", obj.etag);
   h.set("Cache-Control", "public, max-age=31536000, immutable"); // 键是 uuid，不复用
+  h.set("X-Content-Type-Options", "nosniff"); // R1-06：按 Content-Type 显示，不让浏览器猜
   return new Response(obj.body, { headers: h });
 }
 
@@ -259,6 +272,10 @@ app.use("/api/kitchen/*", async (c, next) => {
 });
 
 /** 解析手写/编辑提交的内容字段（JSON 字符串或数组都行），返回规范化后的 RecipeDraft */
+/** 校验失败的 details：可定位的问题（只写了编号）给对象，其余给字符串 */
+const draftDetails = (r: Extract<NormalizeResult, { ok: false }>): ErrorDetail[] =>
+  r.errors.map((e) => r.issues.find((i) => i.message === e) ?? e);
+
 function parseContent(raw: Record<string, unknown>, base?: RecipeDraft): RecipeDraft {
   const pick = (k: string) => {
     const v = raw[k];
@@ -272,7 +289,7 @@ function parseContent(raw: Record<string, unknown>, base?: RecipeDraft): RecipeD
   for (const k of ["ingredients", "steps", "tips", "servings", "total_time"]) if (raw[k] !== undefined) merged[k] = pick(k);
   delete merged.chef_message;
   const r = normalizeDraft(merged, { mode: "edit" });
-  if (!r.ok) throw new ApiError("VALIDATION", r.errors.join("；"), r.errors);
+  if (!r.ok) throw new ApiError("VALIDATION", r.errors.join("；"), draftDetails(r));
   return r.draft;
 }
 const CONTENT_KEYS = ["ingredients", "steps", "tips", "servings", "total_time"];
@@ -320,7 +337,7 @@ app.post("/api/kitchen/dishes", async (c) => {
 app.patch("/api/kitchen/dishes/:id", async (c) => {
   const id = c.req.param("id")!;
   const d = await mustDish(c.env.DB, id);
-  const body = await readJson(c);
+  const body = await readJson(c, MAX_JSON_BYTES);
   const sets: string[] = [], vals: unknown[] = [];
   if (body.name !== undefined) { sets.push("name=?"); vals.push(checkName(body.name)); }
   if (body.category !== undefined) { sets.push("category=?"); vals.push(checkCategory(body.category)); }
@@ -418,14 +435,14 @@ app.post("/api/kitchen/dishes/:id/confirm", async (c) => {
   const id = c.req.param("id")!;
   const d = await mustDish(c.env.DB, id);
   if (d.chef_status !== "draft") throw new ApiError("BAD_STATE", "这道菜现在没有待确认的厨驼草稿");
-  const body = await readJson(c);
+  const body = await readJson(c, MAX_JSON_BYTES);
   const draft = JSON.parse(d.draft ?? "{}") as RecipeDraft;
   const merged = parseContent(body, draft); // 先按宽松规则解析大王的修改
   if (!merged.ingredients.length && !merged.steps.length)
     throw new ApiError("VALIDATION", "草稿是空的，不能直接确认；可以放弃草稿，或者自己写好再保存");
   // 合并结果走和交稿同一套严格校验（食材有用量、步骤 3–12 步）；大王手写保存不受此限
   const strict = normalizeDraft({ ...merged, chef_message: null }, { mode: "chef" });
-  if (!strict.ok) throw new ApiError("VALIDATION", "确认后的菜谱不合格：" + strict.errors.join("；"), strict.errors);
+  if (!strict.ok) throw new ApiError("VALIDATION", "确认后的菜谱不合格：" + strict.errors.join("；"), draftDetails(strict));
   const content = strict.draft;
   const cols = draftColumns(content);
   const res = await c.env.DB.prepare(`UPDATE dishes SET ingredients=?, steps=?, tips=?, servings=?, total_time=?, source='chef',
@@ -512,9 +529,9 @@ app.post("/api/chef/tasks/:id/draft", chefOnMw, async (c) => {
   const id = c.req.param("id")!;
   const d = await mustDish(c.env.DB, id);
   if (d.chef_status !== "pending") throw new ApiError("BAD_STATE", `这道菜现在是 ${d.chef_status} 状态，只有 pending（待写）的菜能交稿`);
-  const body = await readJson(c);
+  const body = await readJson(c, MAX_JSON_BYTES);
   const r = normalizeDraft(body, { mode: "chef" });
-  if (!r.ok) throw new ApiError("VALIDATION", "草稿没通过校验：" + r.errors.join("；"), r.errors);
+  if (!r.ok) throw new ApiError("VALIDATION", "草稿没通过校验：" + r.errors.join("；"), draftDetails(r));
   const now = nowIso();
   const res = await c.env.DB.prepare("UPDATE dishes SET chef_status='draft', draft=?, draft_at=?, claimed_at=NULL, updated_at=? WHERE id=? AND chef_status='pending'")
     .bind(JSON.stringify(r.draft), now, now, id).run();

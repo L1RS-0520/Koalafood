@@ -15,9 +15,12 @@ const STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409, BAD_STATE: 409, TOO_LARGE: 413, BAD_TYPE: 415, STORAGE_QUOTA: 429, STORAGE_FULL: 507, INTERNAL: 500,
 };
 
+/** details 元素：一般是中文字符串；v2.3.3 起「只写了编号」等可定位的问题是对象 {field, index(从 1 起), reason, message} */
+export type ErrorDetail = string | { field: string; index: number; reason: string; message: string };
+
 export class ApiError extends Error {
-  code: ErrorCode; details?: string[];
-  constructor(code: ErrorCode, message: string, details?: string[]) { super(message); this.code = code; this.details = details; }
+  code: ErrorCode; details?: ErrorDetail[];
+  constructor(code: ErrorCode, message: string, details?: ErrorDetail[]) { super(message); this.code = code; this.details = details; }
   get status() { return STATUS[this.code]; }
 }
 
@@ -111,3 +114,7 @@ export async function safeEqual(a: string, b: string): Promise<boolean> {
   for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
   return diff === 0;
 }
+
+/** v2.3.3 R1-08：JSON 请求体上限（厨驼交稿 / PATCH / confirm），64KB = 65,536 字节 */
+export const MAX_JSON_BYTES = 64 * 1024;
+export const bodyTooLargeMessage = (bytes: number) => `内容太大了（${fmtKB(bytes)}），上限 ${MAX_JSON_BYTES / 1024}KB`;

@@ -16,9 +16,17 @@ export interface RecipeDraft {
   chef_message?: string | null;
 }
 
+/** v2.3.3 R1-07：结构化的校验问题（目前只有「只写了编号」）。index 从 1 开始，与文案「第 N 步」一致。 */
+export interface DraftIssue {
+  field: "steps" | "ingredients" | "tips";
+  index: number;
+  reason: "only_number";
+  message: string;
+}
+
 export type NormalizeResult =
   | { ok: true; draft: RecipeDraft; warnings: string[] }
-  | { ok: false; errors: string[] };
+  | { ok: false; errors: string[]; issues: DraftIssue[] };
 
 export interface NormalizeOptions {
   /**
@@ -83,6 +91,9 @@ const str = (v: unknown): string | null => {
   return null;
 };
 
+/** 去掉编号后什么都不剩（“第三步”“1.”“步骤2：”）：食材名、小贴士、步骤共用 */
+const isOnlyNumber = (s: string) => { const t = s.replace(/\s+/g, " ").trim(); return !!t && !stripNumbering(t); };
+
 /** 去掉步骤开头的编号，如 “1.” “第一步：” “Step 2:” */
 const stripNumbering = (s: string) =>
   s.replace(/^(?:第[一二三四五六七八九十\d]+步[:：、.\s]*|步骤\s*\d+[:：、.\s]*|step\s*\d+[:：.\s]*|\d+\s*[.、:：)）]\s*)/i, "").trim();
@@ -114,13 +125,19 @@ function fieldOf(o: Record<string, unknown>, keys: string[]): unknown {
 export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): NormalizeResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const issues: DraftIssue[] = [];
+  /** 只写了编号（如“第三步”“1.”）：去掉编号后为空 → 400，文案说人话，details 带结构化信息 */
+  const onlyNumber = (field: DraftIssue["field"], index: number, message: string) => {
+    errors.push(message);
+    issues.push({ field, index, reason: "only_number", message });
+  };
   let obj: unknown = input;
   if (typeof input === "string") {
     try { obj = parseDraftText(input); }
-    catch (e) { return { ok: false, errors: [(e as Error).message] }; }
+    catch (e) { return { ok: false, errors: [(e as Error).message], issues: [] }; }
   }
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
-    return { ok: false, errors: ["草稿必须是一个 JSON 对象，例如 {\"ingredients\":[...],\"steps\":[...]}"] };
+    return { ok: false, errors: ["草稿必须是一个 JSON 对象，例如 {\"ingredients\":[...],\"steps\":[...]}"], issues: [] };
   }
   const o = obj as Record<string, unknown>;
   const mode = opts.mode ?? "edit";
@@ -152,6 +169,7 @@ export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): Nor
         name = str(fieldOf(r, ["name", "名称", "食材"]));
         amount = str(fieldOf(r, ["amount", "quantity", "用量"])) ?? "";
       }
+      if (name && isOnlyNumber(name)) { onlyNumber("ingredients", i + 1, `第 ${i + 1} 项食材只写了编号，补上食材名或删掉这一项`); return; }
       if (!name) { errors.push(`第 ${i + 1} 项食材缺少 name（食材名）`); return; }
       if (mode === "chef" && !amount) { errors.push(`第 ${i + 1} 项食材「${name}」缺少 amount（用量），请写具体用量如“300克”`); return; }
       if (len(name) > LIMITS.ingredientName) { warnings.push(`第 ${i + 1} 项食材名过长，已截断`); name = cut(name, LIMITS.ingredientName); }
@@ -176,7 +194,9 @@ export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): Nor
         time = str(fieldOf(r, ["time", "时间"])) ?? "";
         caption = str(fieldOf(r, ["caption", "对白"])) ?? "";
       }
-      text = text ? stripNumbering(text.replace(/\s+/g, " ").trim()) : null;
+      const rawText = text ? text.replace(/\s+/g, " ").trim() : "";
+      text = rawText ? stripNumbering(rawText) : null;
+      if (rawText && !text) { onlyNumber("steps", i + 1, `第 ${i + 1} 步只写了编号，补上做法或删掉这一步`); return; }
       if (!text) { errors.push(`第 ${i + 1} 步缺少 text（步骤内容）`); return; }
       if (len(text) > LIMITS.stepText) errors.push(`第 ${i + 1} 步太长（${len(text)} 字，最多 ${LIMITS.stepText} 字），请拆成两步`);
       if (len(time) > LIMITS.time) { warnings.push(`第 ${i + 1} 步 time 过长，已截断`); time = cut(time, LIMITS.time); }
@@ -196,13 +216,18 @@ export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): Nor
   // ---- 小贴士 ----
   const tips: string[] = [];
   const rawTips = o.tips ?? [];
-  if (typeof rawTips === "string") { if (rawTips.trim()) tips.push(cut(rawTips.trim(), LIMITS.tip)); }
+  const tipOnlyNumber = (i: number) => onlyNumber("tips", i, `第 ${i} 条小贴士只写了编号，补上内容或删掉这一条`);
+  if (typeof rawTips === "string") {
+    if (isOnlyNumber(rawTips)) tipOnlyNumber(1);
+    else if (rawTips.trim()) tips.push(cut(rawTips.trim(), LIMITS.tip));
+  }
   else if (!Array.isArray(rawTips)) errors.push("tips 必须是字符串数组");
   else {
     if (rawTips.length > LIMITS.tipsMax) warnings.push(`小贴士最多 ${LIMITS.tipsMax} 条，多余的已丢弃`);
-    for (const t of rawTips.slice(0, LIMITS.tipsMax)) {
+    for (const [i, t] of rawTips.slice(0, LIMITS.tipsMax).entries()) {
       const s = str(t);
       if (s === null) { errors.push("tips 里每一项都必须是字符串"); break; }
+      if (s && isOnlyNumber(s)) { tipOnlyNumber(i + 1); continue; }
       if (s) tips.push(len(s) > LIMITS.tip ? cut(s, LIMITS.tip) : s);
     }
   }
@@ -220,7 +245,7 @@ export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): Nor
   const servings = optText("servings", "份量", LIMITS.servings, "人份");
   const total_time = optText("total_time", "总时长", LIMITS.totalTime, "分钟");
 
-  if (errors.length) return { ok: false, errors };
+  if (errors.length) return { ok: false, errors, issues };
   const draft: RecipeDraft = { ingredients, steps, tips, servings, total_time };
   if (mode === "chef") draft.chef_message = chef_message;
   return { ok: true, draft, warnings };
