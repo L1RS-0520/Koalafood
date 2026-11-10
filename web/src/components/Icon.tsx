@@ -30,6 +30,7 @@ export type IconName =
   | 'expand'
   | 'logout'
   | 'chef'
+  | 'more'
 
 const P: Record<IconName, ReactElement> = {
   back: <path d="M15 5l-7 7 7 7" />,
@@ -143,6 +144,13 @@ const P: Record<IconName, ReactElement> = {
     <>
       <path d="M10 4.5H5.5v15H10" />
       <path d="M14 8l4 4-4 4M18 12H9" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none" />
     </>
   ),
   chef: (

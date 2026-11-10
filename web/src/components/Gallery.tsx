@@ -1,4 +1,4 @@
-// 漫画相册：手机左右滑（scroll-snap），电脑箭头/缩略图，点开看大图，显示“第 N/M 张”；1 张时不显示切换控件
+// 相册（规范 §5.3）：跟手滑动 + 一处页码「1 / 3」；点图片放大。不再用页码胶囊、底部点点和单独放大钮。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Photo } from '../api'
@@ -150,19 +150,6 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
             </button>
           ))}
         </div>
-        {multi && (
-          <>
-            <button type="button" className="gallery-arrow gallery-arrow--l" onClick={() => go(idxRef.current - 1)} aria-label="上一张">
-              <Icon name="left" />
-            </button>
-            <button type="button" className="gallery-arrow gallery-arrow--r" onClick={() => go(idxRef.current + 1)} aria-label="下一张">
-              <Icon name="right" />
-            </button>
-            <span className="gallery-count">
-              第 {idx + 1}/{photos.length} 张
-            </span>
-          </>
-        )}
         {hint && (
           <span className="gallery-swipe-hint" aria-hidden="true">
             <Icon name="left" size={16} />
@@ -170,33 +157,11 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
             <Icon name="right" size={16} />
           </span>
         )}
-        <button type="button" className="gallery-zoom" onClick={() => setZoom(idx)} aria-label="放大看">
-          <Icon name="expand" size={18} />
-        </button>
       </div>
       {multi && (
-        <>
-          <div className="gallery-dots" aria-hidden="true">
-            {photos.map((p, i) => (
-              <i key={p.id} className={cx(i === idx && 'on')} />
-            ))}
-          </div>
-          <div className="gallery-thumbs" role="tablist" aria-label="选择照片">
-            {photos.map((p, i) => (
-              <button
-                key={p.id}
-                type="button"
-                role="tab"
-                aria-selected={i === idx}
-                className={cx('gallery-thumb', i === idx && 'on')}
-                onClick={() => go(i)}
-                aria-label={`第 ${i + 1} 张`}
-              >
-                <img src={p.url} alt="" loading="lazy" />
-              </button>
-            ))}
-          </div>
-        </>
+        <p className="gallery-pager" aria-live="polite">
+          {idx + 1} / {photos.length}
+        </p>
       )}
       {zoom !== null && <Lightbox photos={photos} start={zoom} name={name} onClose={(i) => (setZoom(null), go(i, false))} />}
     </section>
@@ -241,7 +206,7 @@ function Lightbox({ photos, start, name, onClose }: { photos: Photo[]; start: nu
       {multi && (
         <>
           <span className="lightbox-count">
-            第 {idx + 1}/{photos.length} 张
+            {idx + 1} / {photos.length}
           </span>
           <button type="button" className="gallery-arrow gallery-arrow--l lightbox-arrow" onClick={() => go(idxRef.current - 1)} aria-label="上一张">
             <Icon name="left" />

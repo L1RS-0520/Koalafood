@@ -691,132 +691,364 @@
 }
 
 /* ========== 详情页 ========== */
-.detail {
-  padding-top: 16px;
+.page--detail {
+  max-width: none;
+  padding: 0 0 calc(32px + var(--safe-b));
 }
-.detail-name {
-  font-size: 38px;
-  line-height: 46px;
-  letter-spacing: 1px;
-  color: #fff;
-  -webkit-text-stroke: 7px var(--ink);
-  paint-order: stroke fill;
-  text-shadow: 3px 4px 0 var(--ink);
+.detail {
+  max-width: calc(var(--content-max) + 80px);
+  margin: 0 auto;
+  padding: 16px var(--page-x) 32px;
+}
+.detail-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 36px;
+  margin: 4px 0 6px;
+  color: var(--ink);
   word-break: break-word;
 }
-.detail-meta {
-  display: flex;
-  flex-wrap: wrap;
+.detail-meta-line {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+.detail-stage {
+  display: block;
+}
+.detail-steps {
+  margin-top: 16px;
+}
+.yonkoma {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin-top: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
 }
-.meta-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 28px; /* 走查 P2-6：胶囊 28 高、13/700 */
-  padding: 3px 10px 3px 7px;
-  border: var(--line-sm);
-  border-radius: var(--r-pill);
-  background: #fff;
-  font-size: 13px;
+.yonkoma > li {
+  display: flex;
+  min-width: 0;
+}
+.cell {
+  width: 100%;
+  border: var(--line);
+  border-radius: var(--r-cell);
+  background: var(--card);
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+  color: var(--ink);
+}
+.cell:active {
+  opacity: 0.85;
+}
+.cell-num {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 20px;
+  height: 20px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
   font-weight: 700;
-  line-height: 18px;
-}
-.meta-chip--num {
-  font-family: var(--font-num);
-}
-/* 状态条（大王）：黄色横条 */
-.state-bar {
+  line-height: 1;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-  margin-top: 14px;
-  padding: 8px 12px;
+  justify-content: center;
+  z-index: 1;
+}
+.cell-pic {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 8px 0;
+  min-height: 110px;
+  height: 126px;
+}
+.cell-pic .step-scene,
+.cell-pic .step-pose {
+  width: 100%;
+  height: 108px;
+}
+.cell-cap {
+  font-size: 13px;
+  line-height: 18px;
+  padding: 4px 8px 8px;
+  color: var(--ink);
+  margin: 0;
+}
+.yonkoma-empty {
+  padding: 24px 12px;
   border: var(--line);
-  border-radius: 12px;
-  background: var(--accent);
-  box-shadow: 3px 3px 0 var(--ink);
+  border-style: dashed;
+  border-radius: var(--r-cell);
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.yonkoma-empty .center-actions {
+  margin-top: 12px;
+}
+.more-wrap {
+  margin-top: 0;
+}
+.more {
+  min-height: var(--touch);
+  width: 100%;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.more-panel {
+  margin-top: 8px;
+  padding: 4px 0 0;
+  border-top: var(--line-sm);
+}
+.more-sec {
+  margin-top: 16px;
+}
+.more-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 24px;
+  margin-bottom: 8px;
+}
+.more-hint {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--muted);
+}
+.more-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.more-ing {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: var(--touch);
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--cream-2);
+  background: none;
+  font-size: 16px;
+  color: var(--ink);
+  text-align: left;
+}
+.more-ing-amt {
+  color: var(--muted);
+  font-size: 14px;
+}
+.more-ing.on .more-ing-name {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.more-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.more-steps li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 16px;
+  line-height: 24px;
+}
+.more-step-no {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.more-step-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+.more-note,
+.more-tips li {
+  font-size: 16px;
+  line-height: 24px;
+}
+.more-tips {
+  margin: 0;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+.more-empty {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 12px 0;
+}
+.detail-foot {
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
+}
+.step-dialog-pic {
+  height: 160px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.step-dialog-pic .step-scene,
+.step-dialog-pic .step-pose {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+}
+.step-dialog-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.step-dialog-text {
+  font-size: 16px;
+  line-height: 26px;
+}
+
+/* 顶栏「···」菜单 */
+.overflow {
+  position: relative;
+}
+.overflow-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  min-width: 168px;
+  padding: 4px 0;
+  background: var(--card);
+  border: var(--line);
+  border-radius: var(--r-card);
+  display: flex;
+  flex-direction: column;
+}
+.overflow-item {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 16px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 15px;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.overflow-item:disabled {
+  color: var(--muted);
+}
+.overflow-item:active:not(:disabled) {
+  opacity: 0.7;
+}
+.overflow-item--danger {
+  color: var(--red);
+}
+
+/* 状态条（大王）：细线说明，不用黄底 */
+.state-bar {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: var(--line-sm);
+  border-radius: var(--r-cell);
+  background: var(--card);
   font-size: 14px;
   line-height: 20px;
 }
-.state-bar b {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 17px; /* 走查 P2-9 */
-}
-.state-bar small {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--text);
-  opacity: 0.75;
-}
-/* 厨驼留言卡 */
 .chef-msg {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 12px;
+  margin: 0 0 12px;
   padding: 10px 12px;
-  border: 3.5px solid var(--ink);
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 5px 5px 0 var(--primary); /* 走查 P2-9 */
-  animation: route-in 320ms ease-out both;
-}
-.chef-msg-avatar {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 62px;
-  height: 62px;
-  border: var(--line-md);
-  border-radius: 50%;
-  background: var(--bg);
-  overflow: hidden;
-}
-.chef-msg-avatar .llama {
-  width: 60px !important;
-  margin-top: 8px;
+  border: var(--line-sm);
+  border-radius: var(--r-cell);
+  background: var(--card);
 }
 .chef-msg-label {
-  display: inline-block;
-  padding: 0 10px;
-  border: var(--line-sm);
-  border-radius: var(--r-pill);
-  background: var(--primary);
-  font-family: var(--font-display);
-  font-size: 14px;
-  line-height: 22px;
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
 }
 .chef-msg p {
   margin-top: 4px;
-  font-weight: 700;
   font-size: 16px;
   line-height: 1.5;
 }
 .chef-msg--alert {
-  background: #fff1f1;
-  box-shadow: 5px 5px 0 var(--danger);
+  border-color: var(--red);
 }
 .chef-msg--alert .chef-msg-label {
-  background: var(--danger-tag-bg);
-  color: #fff;
+  color: var(--red);
 }
-/* 大王备注：黄色方形“旁白框”（无圆角） */
-.narration-box {
-  margin-top: 14px;
-  padding: 8px 12px;
-  border: var(--line);
-  background: var(--accent);
-  box-shadow: 3px 3px 0 var(--ink);
-  font-size: 14px;
-  line-height: 1.6;
+
+@media (min-width: 960px) {
+  .detail {
+    padding: 28px 40px 48px;
+  }
+  .detail-title {
+    font-size: 36px;
+    line-height: 44px;
+  }
+  .detail-meta-line {
+    margin-bottom: 20px;
+  }
+  .detail-stage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 28px;
+    align-items: start;
+  }
+  .detail-steps {
+    margin-top: 0;
+  }
+  .yonkoma {
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .cell {
+    min-height: 175px;
+  }
+  .cell-pic .step-scene,
+  .cell-pic .step-pose {
+    height: 118px;
+  }
+  .more {
+    justify-content: flex-end;
+  }
 }
-.narration-box b {
-  font-weight: 700;
-}
+
 /* 考拉旁白 */
 .koala-say {
   display: flex;
@@ -2105,4 +2337,25 @@
 .row-err svg {
   flex: none;
   margin-top: 2px;
+}
+
+/* 四格里的步骤插画：去掉彩色底和裁切，只用原图居中 */
+.cell .step-scene,
+.step-dialog-pic .step-scene {
+  object-fit: contain;
+}
+.cell .step-pose,
+.cell .step-pose--yellow,
+.cell .step-pose--pink,
+.cell .step-pose--orange,
+.cell .step-pose--mint,
+.cell .step-pose--green,
+.step-dialog-pic .step-pose,
+.step-dialog-pic .step-pose--yellow,
+.step-dialog-pic .step-pose--pink,
+.step-dialog-pic .step-pose--orange,
+.step-dialog-pic .step-pose--mint,
+.step-dialog-pic .step-pose--green {
+  background: var(--card);
+  background-color: var(--card);
 }

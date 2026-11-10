@@ -45,6 +45,16 @@ export function stepCaption(step: Step, index: number, total: number): string {
   return COMMON_LINES[index % COMMON_LINES.length]
 }
 
+/** 四格底部短说明：优先用 caption，否则取步骤原文前半句（不超过 16 字） */
+export function stepShort(step: Step): string {
+  const cap = step.caption?.trim()
+  if (cap) return cap
+  const text = step.text.trim()
+  const cut = text.split(/[，。；;！!？?]/)[0] || text
+  if (cut.length <= 16) return cut
+  return `${cut.slice(0, 16)}…`
+}
+
 export type StepKind = 'knife' | 'wok' | 'pot' | 'bowl' | 'steam' | 'oven' | 'plate' | 'fridge' | 'spark'
 
 /** 按步骤文字猜一个小插图 */
