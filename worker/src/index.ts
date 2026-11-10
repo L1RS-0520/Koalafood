@@ -70,7 +70,7 @@ async function mustDish(db: D1Database, id: string): Promise<DishRow> {
 async function dishJson(c: C, id: string, full?: boolean) {
   const d = await mustDish(c.env.DB, id);
   const dish = toDish(d, await getPhotos(c.env.DB, id));
-  if (!(full ?? c.get("viewer").logged_in)) { dish.draft = null; dish.requested_note = null; }
+  if (!(full ?? c.get("viewer").logged_in)) { dish.draft = null; dish.requested_note = null; dish.chef_requested_at = null; }
   return dish;
 }
 
@@ -428,9 +428,12 @@ app.post("/api/kitchen/dishes/:id/confirm", async (c) => {
   if (!strict.ok) throw new ApiError("VALIDATION", "确认后的菜谱不合格：" + strict.errors.join("；"), strict.errors);
   const content = strict.draft;
   const cols = draftColumns(content);
-  await c.env.DB.prepare(`UPDATE dishes SET ingredients=?, steps=?, tips=?, servings=?, total_time=?, source='chef',
-      chef_status='confirmed', draft=NULL, requested_note=NULL, claimed_at=NULL, updated_at=? WHERE id=?`)
-    .bind(cols.ingredients, cols.steps, cols.tips, cols.servings, cols.total_time, nowIso(), id).run();
+  const res = await c.env.DB.prepare(`UPDATE dishes SET ingredients=?, steps=?, tips=?, servings=?, total_time=?, source='chef',
+      chef_status='confirmed', draft=NULL, requested_note=NULL, claimed_at=NULL, updated_at=?
+      WHERE id=? AND chef_status='draft' AND draft IS ?`)
+    .bind(cols.ingredients, cols.steps, cols.tips, cols.servings, cols.total_time, nowIso(), id, d.draft).run();
+  // 原子：只确认「读到的那份草稿」；并发 discard / ask-chef / 新草稿改过状态时不写入
+  if (!res.meta.changes) throw new ApiError("BAD_STATE", "这道菜的草稿刚刚被改了（放弃 / 重新找厨驼），没有确认，请刷新看看");
   return c.json(await dishJson(c, id, true));
 });
 
@@ -438,8 +441,10 @@ app.post("/api/kitchen/dishes/:id/discard-draft", async (c) => {
   const id = c.req.param("id")!;
   const d = await mustDish(c.env.DB, id);
   if (d.chef_status !== "draft") throw new ApiError("BAD_STATE", "这道菜现在没有待确认的厨驼草稿，不能放弃");
-  await c.env.DB.prepare(`UPDATE dishes SET chef_status='confirmed', draft=NULL, requested_note=NULL, claimed_at=NULL,
-      chef_requested_at=NULL, updated_at=? WHERE id=?`).bind(nowIso(), id).run();
+  // 原子：只放弃「此刻仍是 draft」的菜；并发 ask-chef 已改回 pending 时不能把它覆盖成 confirmed
+  const res = await c.env.DB.prepare(`UPDATE dishes SET chef_status='confirmed', draft=NULL, requested_note=NULL, claimed_at=NULL,
+      chef_requested_at=NULL, updated_at=? WHERE id=? AND chef_status='draft'`).bind(nowIso(), id).run();
+  if (!res.meta.changes) throw new ApiError("BAD_STATE", "这道菜刚刚被改了状态，没有待确认的厨驼草稿可放弃，请刷新看看");
   return c.json(await dishJson(c, id, true));
 });
 
@@ -482,8 +487,17 @@ app.post("/api/chef/tasks/:id/claim", chefOnMw, async (c) => {
   if (d.chef_status !== "pending") throw new ApiError("BAD_STATE", "这道菜不在待写状态，不能领取");
   if (d.claimed_at && Date.now() - Date.parse(d.claimed_at) < claimTtlMs(c.env))
     throw new ApiError("CONFLICT", `这道菜在 ${d.claimed_at} 已被领取，${Number(c.env.CHEF_CLAIM_TTL_MIN) || 30} 分钟内不能重复领取`);
-  const now = nowIso();
-  await c.env.DB.prepare("UPDATE dishes SET claimed_at=? WHERE id=? AND chef_status='pending'").bind(now, id).run();
+  // 原子领取：状态 + 「没人领 / 上次领取已过期」写进 WHERE，并发时只有一个能写进去
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const cutoff = new Date(nowMs - claimTtlMs(c.env)).toISOString();
+  const res = await c.env.DB.prepare(`UPDATE dishes SET claimed_at=? WHERE id=? AND chef_status='pending'
+      AND (claimed_at IS NULL OR claimed_at < ?)`).bind(now, id, cutoff).run();
+  if (!res.meta.changes) {
+    const cur = await mustDish(c.env.DB, id);
+    if (cur.chef_status !== "pending") throw new ApiError("BAD_STATE", "这道菜不在待写状态，不能领取");
+    throw new ApiError("CONFLICT", `这道菜在 ${cur.claimed_at} 已被领取，${Number(c.env.CHEF_CLAIM_TTL_MIN) || 30} 分钟内不能重复领取`);
+  }
   return c.json(toTask({ ...d, claimed_at: now }, await getPhotos(c.env.DB, id)));
 });
 

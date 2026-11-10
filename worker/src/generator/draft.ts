@@ -129,7 +129,8 @@ export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): Nor
   // ---- 厨驼留言 ----
   let chef_message: string | null = null;
   if (o.chef_message !== undefined && o.chef_message !== null) {
-    const m = str(o.chef_message);
+    // 只收字符串：数字 / 对象 / 数组一律 400（不用 str()，它会把数字转成字符串）
+    const m = typeof o.chef_message === "string" ? str(o.chef_message) : null;
     if (m === null) errors.push("chef_message 必须是字符串");
     else if (m) chef_message = len(m) > LIMITS.chefMessage ? cut(m, LIMITS.chefMessage) : m;
   }
@@ -207,15 +208,17 @@ export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): Nor
   }
 
   // ---- 份量/总时长 ----
-  const optText = (key: "servings" | "total_time", max: number, unit: string): string | null => {
+  // v2.3.3：超过上限返回 400 VALIDATION（不再静默截断）。数字先补单位、再量长度。
+  const optText = (key: "servings" | "total_time", label: string, max: number, unit: string): string | null => {
     const v = o[key];
     if (v === undefined || v === null || v === "") return null;
     const s = typeof v === "number" ? `${v}${unit}` : str(v);
     if (s === null) { errors.push(`${key} 必须是字符串，例如 "2${unit}"`); return null; }
-    return s ? cut(s, max) : null;
+    if (s && len(s) > max) { errors.push(`${label}（${key}）最多 ${max} 个字，现在 ${len(s)} 个字`); return null; }
+    return s || null;
   };
-  const servings = optText("servings", LIMITS.servings, "人份");
-  const total_time = optText("total_time", LIMITS.totalTime, "分钟");
+  const servings = optText("servings", "份量", LIMITS.servings, "人份");
+  const total_time = optText("total_time", "总时长", LIMITS.totalTime, "分钟");
 
   if (errors.length) return { ok: false, errors };
   const draft: RecipeDraft = { ingredients, steps, tips, servings, total_time };
