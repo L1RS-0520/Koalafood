@@ -134,9 +134,13 @@ export const STORAGE_TEXT = {
 export function heicPhotoText(fileName: string): string {
   return `「${fileName}」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）`
 }
-/** 原图超 10MB：「文件名」有 X MB，超过 10MB 了，换一张小一点的吧（mb 为 MB 数，显示保留 1 位小数） */
+/** MB 数保留 1 位小数、向上取整（需求 v2.4.6 §12-33 第 3 条：10,485,761 字节 → 10.1，不能显示 10.0）。先去掉浮点误差再进位 */
+export function ceilMb1(mb: number): string {
+  return (Math.ceil(Math.round(mb * 10 * 1e6) / 1e6) / 10).toFixed(1)
+}
+/** 原图超 10MB：「文件名」有 X MB，超过 10MB 了，换一张小一点的吧（mb 为 MB 数，1 位小数向上取整） */
 export function tooBigPhotoText(fileName: string, mb: number): string {
-  return `「${fileName}」有 ${mb.toFixed(1)} MB，超过 10MB 了，换一张小一点的吧`
+  return `「${fileName}」有 ${ceilMb1(mb)} MB，超过 10MB 了，换一张小一点的吧`
 }
 const MB_BYTES = 1024 * 1024
 /** 旧调用方式（按字节）的兼容封装 */

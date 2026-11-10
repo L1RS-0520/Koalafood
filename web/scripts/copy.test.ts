@@ -8,13 +8,17 @@ test('HEIC 提示：§12-5 原文前加文件名', () => {
 })
 
 test('原图超 10MB：X 保留 1 位小数', () => {
-  assert.equal(PHOTO_TEXT.tooBig('big.jpg', 12.34 * 1024 * 1024), '「big.jpg」有 12.3 MB，超过 10MB 了，换一张小一点的吧')
-  assert.equal(PHOTO_TEXT.tooBig('a.png', 10 * 1024 * 1024 + 1), '「a.png」有 10.0 MB，超过 10MB 了，换一张小一点的吧')
+  // v2.4.6 §12-33 第 3 条：1 位小数向上取整
+  assert.equal(PHOTO_TEXT.tooBig('big.jpg', 12.34 * 1024 * 1024), '「big.jpg」有 12.4 MB，超过 10MB 了，换一张小一点的吧')
+  assert.equal(PHOTO_TEXT.tooBig('a.png', 10_485_761), '「a.png」有 10.1 MB，超过 10MB 了，换一张小一点的吧')
+  assert.equal(PHOTO_TEXT.tooBig('c.jpg', 12.4 * 1024 * 1024), '「c.jpg」有 12.4 MB，超过 10MB 了，换一张小一点的吧')
 })
 
 test('导出函数：heicPhotoText(文件名) / tooBigPhotoText(文件名, MB数)', () => {
   assert.equal(heicPhotoText('a.heic'), '「a.heic」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）')
-  assert.equal(tooBigPhotoText('b.jpg', 12.34), '「b.jpg」有 12.3 MB，超过 10MB 了，换一张小一点的吧')
+  assert.equal(tooBigPhotoText('b.jpg', 12.34), '「b.jpg」有 12.4 MB，超过 10MB 了，换一张小一点的吧')
+  assert.equal(tooBigPhotoText('d.jpg', 12.4), '「d.jpg」有 12.4 MB，超过 10MB 了，换一张小一点的吧')
+  assert.equal(tooBigPhotoText('e.jpg', 10), '「e.jpg」有 10.0 MB，超过 10MB 了，换一张小一点的吧')
   assert.equal(PHOTO_TEXT.heic('a.heic'), heicPhotoText('a.heic'))
 })
 
