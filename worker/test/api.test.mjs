@@ -30,7 +30,8 @@
 //         开跑前检查不通过（剩余写入额度不足 / FULL 打 8787）3。
 //
 // 安全护栏（仓库公开）：
-// - 厨驼密钥运行时从 worker/.dev.vars 读，只放内存，输出统一脱敏；
+// - 厨驼密钥运行时从 worker/.dev.vars（或 CHEF_KEY_FILE 指向的文件）
+//   读，只放内存，输出统一脱敏；
 //   cookie 值从不打印。
 // - 开跑前给已有菜（含留给厨驼的示例菜）拍快照，结束时逐项比对；
 //   所有写操作/厨驼操作都先过 ownership guard，只碰本次创建的菜。
@@ -50,6 +51,7 @@ import { createRunner, registerSecret, redact, Skip }
 import * as V from './lib/validators.mjs';
 import * as B from './lib/budget.mjs';
 import { runOfflineTests } from './validators.test.mjs';
+import { readChefKey } from './lib/chefkey.mjs';
 
 // ---------- 命令行参数（未知参数直接报错，绝不悄悄跑在线用例） ----------
 const ARGS = process.argv.slice(2);
@@ -94,18 +96,6 @@ const badSub = (label) => {
 };
 
 // ---------- 密钥（不打印） ----------
-function readChefKey() {
-  const f = new URL('../.dev.vars', import.meta.url);
-  if (!existsSync(f)) return null;
-  for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*(?:export\s+)?CHEF_KEY\s*=\s*(.*?)\s*$/);
-    if (!m) continue;
-    let v = m[1];
-    if (/^(['"]).*\1$/.test(v)) v = v.slice(1, -1);
-    return v || null;
-  }
-  return null;
-}
 const KEY = readChefKey();
 registerSecret(KEY);
 const WRONG_KEY = `wrong-${crypto.randomUUID()}`;

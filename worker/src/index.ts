@@ -1,5 +1,5 @@
 /**
- * 考拉食堂 Worker（接口约定 v2.3：读公开 /api/*，写入 /api/kitchen/*，厨驼 /api/chef/*）
+ * 考拉食堂 Worker（接口约定 v2.3.2：读公开 /api/*，写入 /api/kitchen/*，厨驼 /api/chef/*）
  */
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
@@ -214,7 +214,9 @@ app.get("/api/me", (c) => {
 
 app.get("/api/dishes", chefMockMw, async (c) => {
   const cat = c.req.query("category")?.trim();
-  const SQL = `SELECT d.id, d.name, d.category, d.source, d.chef_status, d.created_at,
+  // total_time 取 dishes.total_time 列：它只存「已确认」的正式内容（草稿在 draft 列里），
+  // 所以 pending/draft 的菜只会显示旧的正式值或 null，不会把草稿漏给访客——与详情页 toDish 同一口径。
+  const SQL = `SELECT d.id, d.name, d.category, d.source, d.chef_status, d.total_time, d.created_at,
       (SELECT r2_key FROM dish_photos p WHERE p.dish_id = d.id ORDER BY position, created_at LIMIT 1) AS cover,
       (SELECT COUNT(*) FROM dish_photos p WHERE p.dish_id = d.id) AS photo_count
     FROM dishes d`;
@@ -224,11 +226,11 @@ app.get("/api/dishes", chefMockMw, async (c) => {
     checkCategory(cat);
     stmt = c.env.DB.prepare(`${SQL} WHERE d.category = ? ORDER BY d.created_at DESC, d.id DESC`).bind(cat);
   }
-  const r = await stmt.all<{ id: string; name: string; category: string; source: string; chef_status: string; created_at: string; cover: string | null; photo_count: number }>();
+  const r = await stmt.all<{ id: string; name: string; category: string; source: string; chef_status: string; total_time: string | null; created_at: string; cover: string | null; photo_count: number }>();
   return c.json({
     dishes: r.results.map((d) => ({
       id: d.id, name: d.name, category: d.category, photo_url: d.cover ? `/api/photos/${d.cover}` : null,
-      photo_count: d.photo_count, source: d.source, chef_status: d.chef_status, created_at: d.created_at,
+      photo_count: d.photo_count, source: d.source, chef_status: d.chef_status, total_time: d.total_time ?? null, created_at: d.created_at,
     })),
   });
 });
