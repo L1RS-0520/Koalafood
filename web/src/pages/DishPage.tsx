@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, POLL_MS, type Dish, type RecipeContent } from '../api'
 import { ChefLlama, ChefWriting, Dots } from '../components/ChefLlama'
+import { AccountActions } from '../components/AccountActions'
 import { Gallery } from '../components/Gallery'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
@@ -14,6 +15,7 @@ import { usePolling, useTitle } from '../lib/hooks'
 import { cx, dateLabel, len } from '../lib/util'
 
 const VISITOR_WAIT = '考拉大王还在整理这道菜的菜谱～'
+const HANDOFF_MS = 800
 
 export function DishPage() {
   const { id = '' } = useParams()
@@ -25,6 +27,8 @@ export function DishPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [request, setRequest] = useState('')
   const prev = useRef<string | null>(null)
+  /** 交稿帧 ④：待写 → 草稿时先播 0.8 秒再切到草稿页（设计 §5.7 / §5.8，走查 P2-11） */
+  const [handoff, setHandoff] = useState(false)
   useTitle(dish?.name ?? '菜品')
 
   const load = useCallback(
@@ -32,6 +36,10 @@ export function DishPage() {
       try {
         const d = await api.getDish(id)
         if (silent && prev.current === CHEF_STATUS.pending && d.chef_status === CHEF_STATUS.draft && app.canEdit) {
+          prev.current = d.chef_status
+          setHandoff(true)
+          await new Promise((r) => setTimeout(r, HANDOFF_MS))
+          setHandoff(false)
           app.toast('厨驼交稿啦！看看草稿吧', 'ok')
         }
         prev.current = d.chef_status
@@ -124,11 +132,12 @@ export function DishPage() {
   } else if (pending && !hasOfficial) {
     body = (
       <>
-        <ChefAtWork on={app.chefEnabled} requested={dish.requested_note} />
+        <ChefAtWork on={app.chefEnabled} requested={dish.requested_note} handoff={handoff} />
+        {/* 只在动画下面放一个（走查 P2-10）；底栏不再重复 */}
         <div className="center-actions">
           <Link className={cx('btn', app.chefEnabled ? 'btn--ghost' : 'btn--primary')} to={editHref}>
             <Icon name="pencil" size={18} />
-            我自己写
+            {app.chefEnabled ? '等不及了，我自己写' : '我自己写'}
           </Link>
         </div>
       </>
@@ -183,7 +192,8 @@ export function DishPage() {
 
   return (
     <main className="page page--detail">
-      <TopBar title={dish.category} />
+      {/* 中间不放标题（分类在菜名下的胶囊里），右侧放身份区（设计 §5.2，走查 P2-2） */}
+      <TopBar title="" right={<AccountActions />} />
       <article className="detail">
         <h1 className="detail-name">
           <span>{dish.name}</span>
@@ -203,7 +213,6 @@ export function DishPage() {
               {dish.total_time}
             </span>
           )}
-          {showSource && <span className="meta-chip meta-chip--src">{dish.source === 'manual' ? '大王手写' : '厨驼执笔'}</span>}
         </div>
         {owner && isDraft && (
           <p className="state-bar state-bar--draft" role="status">
@@ -255,10 +264,12 @@ export function DishPage() {
             </>
           ) : (
             <>
-              <Link className="btn btn--ghost" to={editHref}>
-                <Icon name="edit" size={18} />
-                {pending && !hasOfficial ? '我自己写' : '编辑'}
-              </Link>
+              {!(pending && !hasOfficial) && (
+                <Link className="btn btn--ghost" to={editHref}>
+                  <Icon name="edit" size={18} />
+                  编辑
+                </Link>
+              )}
               {app.chefEnabled && !pending && (
                 <button type="button" className="btn btn--secondary" onClick={() => (setRequest(''), setDlg('rewrite'))}>
                   <Icon name="chef" size={18} />
@@ -356,13 +367,27 @@ export function DishPage() {
 }
 
 /** 待写（没有正式内容）：厨驼写作中（看照片 → 想 → 写 循环） */
-function ChefAtWork({ on, requested }: { on: boolean; requested: string | null }) {
+function ChefAtWork({ on, requested, handoff }: { on: boolean; requested: string | null; handoff?: boolean }) {
   const [sub, setSub] = useState('正在看大王的照片…')
   return (
     <section className={cx('chef-work', !on && 'chef-work--off')} aria-live="polite">
-      <div className="chef-work-art">{on ? <ChefWriting size={150} onSub={setSub} /> : <ChefLlama pose="off" size={130} />}</div>
+      {/* 舞台：宽同内容宽、高 170、绿色网点底（设计 §5.8，走查 P2-11） */}
+      <div className="chef-work-art">
+        {!on ? (
+          <ChefLlama pose="off" size={112} />
+        ) : handoff ? (
+          <ChefLlama pose="done" size={116} className="llama--handoff" title="厨驼交稿啦" />
+        ) : (
+          <ChefWriting size={116} onSub={setSub} />
+        )}
+      </div>
       <div className="bubble bubble--up chef-work-bubble">
-        {on ? (
+        {on && handoff ? (
+          <>
+            <h2>交稿啦！</h2>
+            <p className="chef-work-sub">厨驼写好了，马上给大王看～</p>
+          </>
+        ) : on ? (
           <>
             <h2>
               厨驼正在写菜谱

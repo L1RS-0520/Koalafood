@@ -30,11 +30,31 @@ function useSnapIndex(ref: React.RefObject<HTMLDivElement | null>, count: number
   return [idx, go] as const
 }
 
+const HINT_KEY = 'koala-canteen:swipe-hint-seen'
+/** 手机首次进入多图相册：提示一次“左右滑动”，1.5 秒后淡出（设计 §5.4，走查 P2-4） */
+function useSwipeHint(multi: boolean) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (!multi || typeof matchMedia === 'undefined' || !matchMedia('(hover: none)').matches) return
+    try {
+      if (localStorage.getItem(HINT_KEY)) return
+      localStorage.setItem(HINT_KEY, '1')
+    } catch {
+      return
+    }
+    setShow(true)
+    const t = setTimeout(() => setShow(false), 1500)
+    return () => clearTimeout(t)
+  }, [multi])
+  return show
+}
+
 export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
   const track = useRef<HTMLDivElement>(null)
   const [idx, go] = useSnapIndex(track, photos.length)
   const [zoom, setZoom] = useState<number | null>(null)
   const multi = photos.length > 1
+  const hint = useSwipeHint(multi)
 
   if (photos.length === 0) {
     return (
@@ -48,8 +68,6 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
   return (
     <section className="gallery" aria-roledescription="相册" aria-label={`${name}的照片`}>
       <div className="gallery-frame">
-        <span className="tape tape--l" aria-hidden="true" />
-        <span className="tape tape--r" aria-hidden="true" />
         <div
           className="gallery-track"
           ref={track}
@@ -84,9 +102,16 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
             </span>
           </>
         )}
-        <span className="gallery-zoom-hint" aria-hidden="true">
-          <Icon name="expand" size={16} />
-        </span>
+        {hint && (
+          <span className="gallery-swipe-hint" aria-hidden="true">
+            <Icon name="left" size={16} />
+            左右滑动
+            <Icon name="right" size={16} />
+          </span>
+        )}
+        <button type="button" className="gallery-zoom" onClick={() => setZoom(idx)} aria-label="放大看">
+          <Icon name="expand" size={18} />
+        </button>
       </div>
       {multi && (
         <>
@@ -163,6 +188,22 @@ function Lightbox({ photos, start, name, onClose }: { photos: Photo[]; start: nu
           <button type="button" className="gallery-arrow gallery-arrow--r lightbox-arrow" onClick={() => go(idx + 1)} aria-label="下一张">
             <Icon name="right" />
           </button>
+          {/* 底部缩略图条（设计 详情页-多图相册 ③，走查 P2-5） */}
+          <div className="lightbox-thumbs" role="tablist" aria-label="选择照片">
+            {photos.map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                role="tab"
+                aria-selected={i === idx}
+                className={cx('lightbox-thumb', i === idx && 'on')}
+                onClick={() => go(i)}
+                aria-label={`第 ${i + 1} 张`}
+              >
+                <img src={p.url} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
         </>
       )}
     </div>,

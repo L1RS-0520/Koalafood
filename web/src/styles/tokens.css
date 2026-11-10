@@ -56,8 +56,8 @@
   --lh-h2: 32px;
   --fs-h3: 20px;
   --lh-h3: 26px;
-  --fs-h3-sm: 17px;
-  --lh-h3-sm: 22px;
+  --fs-h3-sm: 18px; /* 卡片菜名 ZCOOL 18/24（设计 §3、走查 P2-1） */
+  --lh-h3-sm: 24px;
   --fs-body: 16px;
   --lh-body: 26px;
   --fs-bubble: 15px;
@@ -73,7 +73,7 @@
   --sp-5: 24px;
   --sp-6: 32px;
   --page-x: 16px;
-  --grid-gap: 14px;
+  --grid-gap: 12px; /* 设计 §4 / card2.css：双列列距 12 */
 
   /* —— 圆角 —— */
   --r-card: 16px;

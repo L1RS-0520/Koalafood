@@ -742,7 +742,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 10px 2px 7px;
+  min-height: 28px; /* 走查 P2-6：胶囊 28 高、13/700 */
+  padding: 3px 10px 3px 7px;
   border: var(--line-sm);
   border-radius: var(--r-pill);
   background: #fff;
@@ -752,10 +753,6 @@
 }
 .meta-chip--num {
   font-family: var(--font-num);
-}
-.meta-chip--src {
-  background: var(--tag-green);
-  padding-left: 10px;
 }
 /* 状态条（大王）：黄色横条 */
 .state-bar {
@@ -768,14 +765,14 @@
   border: var(--line);
   border-radius: 12px;
   background: var(--accent);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 3px 3px 0 var(--ink);
   font-size: 14px;
   line-height: 20px;
 }
 .state-bar b {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 16px;
+  font-size: 17px; /* 走查 P2-9 */
 }
 .state-bar small {
   margin-left: auto;
@@ -790,46 +787,46 @@
   gap: 10px;
   margin-top: 12px;
   padding: 10px 12px;
-  border: var(--line);
+  border: 3.5px solid var(--ink);
   border-radius: 16px;
   background: #fff;
-  box-shadow: 4px 4px 0 var(--primary);
+  box-shadow: 5px 5px 0 var(--primary); /* 走查 P2-9 */
   animation: route-in 320ms ease-out both;
 }
 .chef-msg-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
+  width: 62px;
+  height: 62px;
   border: var(--line-md);
   border-radius: 50%;
   background: var(--bg);
   overflow: hidden;
 }
 .chef-msg-avatar .llama {
-  width: 56px !important;
+  width: 60px !important;
   margin-top: 8px;
 }
 .chef-msg-label {
   display: inline-block;
-  padding: 0 8px;
+  padding: 0 10px;
   border: var(--line-sm);
-  border-radius: 6px;
+  border-radius: var(--r-pill);
   background: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 18px;
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 22px;
 }
 .chef-msg p {
   margin-top: 4px;
   font-weight: 700;
-  font-size: 15px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 1.5;
 }
 .chef-msg--alert {
   background: #fff1f1;
-  box-shadow: 4px 4px 0 var(--danger);
+  box-shadow: 5px 5px 0 var(--danger);
 }
 .chef-msg--alert .chef-msg-label {
   background: var(--danger);
@@ -841,9 +838,9 @@
   padding: 8px 12px;
   border: var(--line);
   background: var(--accent);
-  box-shadow: var(--shadow);
-  font-size: 15px;
-  line-height: 22px;
+  box-shadow: 3px 3px 0 var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
 }
 .narration-box b {
   font-weight: 700;
@@ -873,8 +870,8 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 14px;
-  font-size: var(--fs-h2);
-  line-height: var(--lh-h2);
+  font-size: 22px; /* 区块标题 ZCOOL 22（设计 §3、走查 P2-7） */
+  line-height: 30px;
 }
 .sec-sfx {
   font-family: var(--font-display); /* round-2：拟声词改中文（AC19），用 ZCOOL，不加粗 */
@@ -1042,7 +1039,7 @@
   background-color: #cdeedd;
 }
 .step-pose--green {
-  background-color: #7ee0a8;
+  background-color: var(--secondary);
 }
 .panel-no {
   position: absolute;
@@ -1050,14 +1047,15 @@
   top: 6px;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--ink);
+  box-shadow: 0 0 0 2px #fff; /* 2px 白圈（走查 P2-7） */
   color: #fff;
   font-family: var(--font-num);
   font-weight: 800;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1;
 }
 .panel-bubble {
@@ -1195,7 +1193,7 @@
   padding-right: 8%;
   background:
     repeating-conic-gradient(from 0deg at 72% 60%, rgba(255, 236, 120, 0.85) 0 6deg, transparent 6deg 15deg),
-    #7ee0a8;
+    var(--secondary); /* 色板桉叶绿（走查 P2-8） */
 }
 .end-panel .koala {
   width: auto;
@@ -1233,20 +1231,45 @@
 .chef-work {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 14px;
   margin-top: 26px;
-  padding: 20px 16px 22px;
-  border: var(--line);
-  border-radius: 20px;
-  background:
-    repeating-conic-gradient(from 0deg at 50% 38%, rgba(255, 210, 63, 0.4) 0 7deg, transparent 7deg 16deg),
-    var(--tag-green);
-  box-shadow: var(--shadow);
   text-align: center;
 }
-.chef-work--off {
-  background: var(--tag-gray);
+/* 舞台：宽同内容宽、高 170、绿色网点底（设计 §5.8，走查 P2-11） */
+.chef-work-art {
+  display: grid;
+  place-items: end center;
+  height: 170px;
+  overflow: hidden;
+  border: var(--line);
+  border-radius: 16px;
+  background:
+    radial-gradient(rgba(30, 26, 24, 0.13) 1.2px, transparent 1.4px) 0 0 / 8px 8px,
+    var(--tag-green);
+  box-shadow: var(--shadow);
+}
+.chef-work--off .chef-work-art {
+  background:
+    radial-gradient(rgba(30, 26, 24, 0.1) 1.2px, transparent 1.4px) 0 0 / 8px 8px,
+    var(--tag-gray);
+}
+.chef-work .bubble {
+  align-self: center;
+}
+.llama--handoff {
+  animation: handoff-pop 800ms var(--ease-pop) both;
+}
+@keyframes handoff-pop {
+  from {
+    transform: scale(0.96);
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .llama--handoff {
+    animation: none;
+  }
 }
 .chef-work-bubble h2 {
   font-size: 22px;
@@ -1310,7 +1333,7 @@
   position: relative;
   margin-top: 26px;
   padding: 4px 10px 16px;
-  border: 3px dashed var(--success);
+  border: 3px dashed var(--secondary-dark); /* #4FA982（走查 P2-9） */
   border-radius: 18px;
   background: rgba(227, 244, 236, 0.45);
 }
@@ -1375,9 +1398,8 @@
   justify-content: center;
   gap: 10px;
   padding: 10px 12px calc(10px + var(--safe-b));
-  background: rgba(255, 246, 229, 0.96);
+  background: #fff; /* 白底 + 上边 3px 墨线（走查 P2-7） */
   border-top: var(--line);
-  backdrop-filter: blur(6px);
 }
 .action-bar--grid {
   display: grid;
@@ -1390,7 +1412,7 @@
     justify-content: center;
   }
 }
-.action-bar--grid .btn {
+.action-bar.action-bar--grid .btn {
   max-width: none;
 }
 /* 厨驼关闭时草稿页只有 3 个键：2+1 排，第 3 个（不要了）占满一行（设计 §5.9） */
@@ -1415,11 +1437,13 @@
 }
 .action-bar .btn {
   flex: 1;
+  min-height: 46px;
+  border-radius: 12px;
   max-width: 220px;
   padding-left: 8px;
   padding-right: 8px;
   font-size: 16px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 3px 3px 0 var(--ink);
 }
 
 /* ========== 设置页 ========== */
@@ -1785,14 +1809,15 @@
   font-size: 14px;
 }
 .cap-alert {
+  /* 设计 §5.14 / store.py .capn（走查 P2-12） */
   display: flex;
   gap: 10px;
   padding: 10px 12px;
   border: var(--line);
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
+  border-radius: 14px;
+  box-shadow: 3px 3px 0 var(--ink);
   font-size: 14px;
-  line-height: 21px;
+  line-height: 1.5;
 }
 .cap-alert > svg {
   flex: none;
@@ -1801,22 +1826,27 @@
 .cap-alert b {
   display: block;
   margin-top: 4px;
+  font-weight: 700;
 }
 .cap-alert small {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 13px;
+  color: #c2410c;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 .cap-alert--warn {
-  background: #fff1b8;
+  background: #ffe9a8;
 }
 .cap-alert--danger {
   border-color: var(--danger);
-  background: #ffe1e1;
-  box-shadow: 2px 2px 0 var(--danger);
-  color: #8f1419;
+  background: #ffe1e2;
+  box-shadow: 3px 3px 0 var(--danger);
+  color: #b4232a;
+}
+.cap-alert--danger small {
+  color: #b4232a;
 }
 .cap-tag {
   display: inline-block;
@@ -1829,14 +1859,15 @@
   line-height: 18px;
 }
 .cap-tag--ops {
-  color: #5b4a9e;
-  border-color: #5b4a9e;
+  color: #5b5470;
+  border-color: #5b5470;
 }
 .ops-note {
   padding: 8px 12px;
-  border: 2px dashed #8b7cc8;
+  border: 2px dashed #5b5470;
   border-radius: 12px;
-  background: #efebfb;
+  background: #e8e6f0;
+  color: #3e3852;
   font-size: 13px;
   line-height: 20px;
 }
@@ -1849,10 +1880,13 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 14px;
+  /* 设计 §2「今日上传次数提示」/ store.py .qn（走查 P2-13）：淡紫 + 虚线，无投影 */
   padding: 10px 36px 10px 8px;
-  border: 2.5px dashed #8b7cc8;
-  border-radius: 14px;
-  background: #efebfb;
+  border: 3px dashed #5b5470;
+  border-radius: 16px;
+  background: #e8e6f0;
+  box-shadow: none;
+  color: #3e3852;
   font-size: 14px;
   line-height: 21px;
   animation: route-in 300ms ease-out both;
@@ -1865,12 +1899,17 @@
 .quota-banner b {
   display: block;
   margin-top: 4px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 22px;
 }
 .quota-banner small {
   display: block;
   margin-top: 2px;
   font-size: 12px;
-  color: var(--text-2);
+  font-weight: 700;
+  color: #5b5470;
 }
 .quota-x {
   position: absolute;

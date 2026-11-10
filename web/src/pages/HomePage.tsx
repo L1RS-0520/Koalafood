@@ -6,7 +6,8 @@ import { CategoryTabs } from '../components/CategoryTabs'
 import { DishCard, DishCardSkeleton } from '../components/DishCard'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
-import { Confirm, StatePanel } from '../components/ui'
+import { AccountActions } from '../components/AccountActions'
+import { StatePanel } from '../components/ui'
 import logo from '../assets/logo.webp'
 import { useApp } from '../lib/app'
 import { usePolling, useTitle } from '../lib/hooks'
@@ -49,7 +50,6 @@ export function HomePage() {
     load()
   }, [load])
 
-  const [bye, setBye] = useState(false)
   const drafts = dishes?.filter((d) => d.chef_status === CHEF_STATUS.draft).length ?? 0
   const greeting = app.canEdit
     ? drafts
@@ -80,26 +80,15 @@ export function HomePage() {
               上传新菜
             </Link>
           )}
-          {app.canEdit ? (
-            <>
-              <Link to="/kitchen/settings" className="icon-btn" aria-label="设置">
-                <Icon name="gear" />
-              </Link>
-              <button type="button" className="king-pill" onClick={() => setBye(true)} aria-label="大王已登录，点开可退出登录">
-                <Icon name="crown" size={14} />
-                大王
-              </button>
-            </>
-          ) : (
-            app.ready && (
-              <button type="button" className="login-pill" onClick={() => app.login()}>
-                <Icon name="crown" size={14} />
-                大王登录
-              </button>
-            )
-          )}
+          <AccountActions />
         </div>
       </header>
+
+      {/* 手机：问候在顶栏下、分类胶囊上面（设计 首页分类页 ②、走查 P2-15）；桌面隐藏 */}
+      <div className="greet">
+        <Koala pose={app.canEdit ? 'spoon' : 'wave'} size={64} />
+        <p className="bubble bubble--left">{greeting}</p>
+      </div>
 
       <div className="home-body">
         <aside className="home-side">
@@ -112,10 +101,6 @@ export function HomePage() {
         </aside>
 
         <div className="home-main">
-      <div className="greet">
-        <Koala pose={app.canEdit ? 'spoon' : 'wave'} size={64} />
-        <p className="bubble bubble--left">{greeting}</p>
-      </div>
 
       <h1 className="home-title">
         {category}
@@ -190,19 +175,6 @@ export function HomePage() {
         {app.isMock && <span className="mock-chip">本地模拟数据</span>}
       </footer>
 
-      <Confirm
-        open={bye}
-        title="退出大王登录？"
-        body="退出后就和访客看到的一样，草稿和后厨入口都会藏起来。"
-        okText="退出登录"
-        cancelText="留下"
-        art={<Koala pose="wave" size={76} />}
-        onOk={() => {
-          setBye(false)
-          app.logout()
-        }}
-        onCancel={() => setBye(false)}
-      />
 
       {app.canEdit && (
         <Link to="/kitchen/upload" className="fab" aria-label="上传新菜">
