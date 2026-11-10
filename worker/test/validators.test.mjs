@@ -7,7 +7,7 @@ import {
   validateRecipe, validateDish, validateHealth, validateTask,
   validateErrorBody, validateSettings, validateSummary,
   validateChefSubmission, createOwnershipGuard, validateMe,
-  validateStorage, storageSoftIssues, expectedLevel,
+  validateStorage, storageSoftIssues, expectedLevel, validateDetails,
   expectedPercent,
 } from './lib/validators.mjs';
 import {
@@ -374,6 +374,17 @@ export async function runOfflineTests(runner) {
     expectBad(R2.stateConsistency(dish('draft')), 'draft 为空');
     expectBad(R2.stateConsistency(dish('confirmed', {})), 'draft 非空');
     expectBad(R2.stateConsistency({ chef_status: 'pending', draft: null }), 'chef_requested_at');
+  });
+
+  await test('validateDetails：字符串 / only_number 对象通过；序号与文案不符、index 从 0 起报错', r2, () => {
+    const ok = { field: 'steps', index: 3, reason: 'only_number', message: '第 3 步只写了编号，补上做法或删掉这一步' };
+    assert.deepEqual(validateDetails(undefined), []);
+    assert.deepEqual(validateDetails(['第 1 项食材缺少 name', ok]), []);
+    expectBad(validateDetails('x'), '数组');
+    expectBad(validateDetails([{ ...ok, index: 2 }]), '序号不一致');
+    expectBad(validateDetails([{ ...ok, index: 0, message: '第 0 步只写了编号' }]), '从 1 起');
+    expectBad(validateDetails([{ ...ok, field: 'name' }]), 'field');
+    expectBad(validateErrorBody({ error: { code: 'VALIDATION', message: '中文', details: [1] } }), 'details[0]');
   });
 
   const sec = { api: '离线·安全护栏' };

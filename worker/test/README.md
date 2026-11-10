@@ -104,5 +104,11 @@ confirmed 409 / 已有草稿 409 / 一组格式错 400（步骤 2、13 步、用
 手写上传、PATCH、confirm 都 400；访客详情 `chef_requested_at` 为 null；列表/详情的
 `total_time` 只显示最近一次确认的值（重新找厨驼后仍是旧值，草稿值不出现）。
 
+**v2.3.3 追加（QA R1-06/07/08）**：所有 `/api/*` 响应带 `nosniff`；公开读、登录、kitchen、
+厨驼、预检在任何 Origin 下都没有 ACAO，永不 `Allow-Credentials`；步骤 / 食材名 / 小贴士只写编号
+→ 400，`details` 含 `{field, index(从 1 起), reason:"only_number"}`（手写、PATCH、confirm、交稿）；
+交稿 / PATCH / confirm 的 JSON 体 65,536 字节通过、65,537 字节 413「内容太大了（65KB），上限 64KB」，
+分块上传（无 Content-Length）同样拦。
+
 **KNOWN_BUG**：已确认的真实缺陷可登记在 `round2.test.mjs` 的 `KNOWN_BUGS`，复现时记
 WARN 并在末尾醒目汇总（`STRICT=1` 时算 FAIL）。当前没有登记项。
