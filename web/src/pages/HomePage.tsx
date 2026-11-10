@@ -22,6 +22,9 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const prevStatus = useRef<Map<string, string>>(new Map())
 
+  // 与详情页 B05 相同：load 只依赖稳定的 category / canEdit / toast，不依赖整个 app。
+  // 避免提示条等变化把 list 清空、把 10s 轮询计时重置。
+  const { canEdit, toast } = app
   const load = useCallback(
     async (silent = false) => {
       if (!silent) {
@@ -31,11 +34,11 @@ export function HomePage() {
       try {
         const list = await api.listDishes(category)
         // 轮询发现交稿：提示一下
-        if (silent && app.canEdit) {
+        if (silent && canEdit) {
           const done = list.filter(
             (d) => prevStatus.current.get(d.id) === CHEF_STATUS.pending && d.chef_status === CHEF_STATUS.draft,
           )
-          if (done.length) app.toast(`厨驼交稿啦：${done.map((d) => d.name).join('、')}`, 'ok')
+          if (done.length) toast(`厨驼交稿啦：${done.map((d) => d.name).join('、')}`, 'ok')
         }
         prevStatus.current = new Map(list.map((d) => [d.id, d.chef_status]))
         setDishes(list)
@@ -43,7 +46,7 @@ export function HomePage() {
         if (!silent) setError(e instanceof Error ? e.message : '菜单没加载出来')
       }
     },
-    [category, app],
+    [category, canEdit, toast],
   )
 
   useEffect(() => {
