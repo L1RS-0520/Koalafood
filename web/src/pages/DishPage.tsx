@@ -31,16 +31,19 @@ export function DishPage() {
   const [handoff, setHandoff] = useState(false)
   useTitle(dish?.name ?? '菜品')
 
+  // B05：load 只依赖稳定的 id / canEdit / toast，不依赖整个 app。
+  // 以前 app（提示条、设置等）一变，load 换新，effect 会 setDish(null)，pending 先假后真，轮询计时被重置，交稿后可能超过 15 秒才出草稿。
+  const { canEdit, toast } = app
   const load = useCallback(
     async (silent = false) => {
       try {
         const d = await api.getDish(id)
-        if (silent && prev.current === CHEF_STATUS.pending && d.chef_status === CHEF_STATUS.draft && app.canEdit) {
+        if (silent && prev.current === CHEF_STATUS.pending && d.chef_status === CHEF_STATUS.draft && canEdit) {
           prev.current = d.chef_status
           setHandoff(true)
           await new Promise((r) => setTimeout(r, HANDOFF_MS))
           setHandoff(false)
-          app.toast('厨驼交稿啦！看看草稿吧', 'ok')
+          toast('厨驼交稿啦！看看草稿吧', 'ok')
         }
         prev.current = d.chef_status
         setDish(d)
@@ -49,12 +52,12 @@ export function DishPage() {
         if (!silent) setErr(e instanceof ApiError ? e : new ApiError('INTERNAL', '这道菜没加载出来'))
       }
     },
-    [id, app],
+    [id, canEdit, toast],
   )
   useEffect(() => {
     setDish(null)
     load()
-  }, [load, app.canEdit])
+  }, [load])
 
   const pending = dish?.chef_status === CHEF_STATUS.pending
   usePolling(() => load(true), POLL_MS, !!pending && app.chefEnabled)
