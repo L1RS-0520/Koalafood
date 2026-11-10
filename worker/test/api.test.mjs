@@ -883,7 +883,7 @@ async function photosSection() {
 // ---------- 访客：隐私 + 所有写接口 401 ----------
 async function anonSection() {
   let d;
-  await test('访客读详情：draft、requested_note 为 null，只给 chef_status',
+  await test('访客读详情：draft、requested_note、chef_requested_at 为 null，只给 chef_status',
     { api: 'GET /api/dishes/:id（访客）', ac: '1' }, async () => {
       d = await pendingDish({ any: true });
       expectOk(await kitchen('POST', d.id, '/ask-chef', { json: {
@@ -893,12 +893,17 @@ async function anonSection() {
       assert.equal(anon.chef_status, 'draft');
       assert.equal(anon.draft, null, '访客不应看到 draft');
       assert.equal(anon.requested_note, null, '访客不应看到 requested_note');
+      assert.equal(anon.chef_requested_at, null,
+        '访客不应看到 chef_requested_at（v2.3.3）');
       const me = await getDish(d.id);
       assert.ok(V.isObj(me.draft), '登录后应看到 draft');
       assert.equal(me.requested_note, '这次加了土豆');
+      assert.ok(V.isIsoUtc(me.chef_requested_at), '登录后应看到 chef_requested_at');
       const s = (await listDishes()).find((x) => x.id === d.id);
       assert.ok(!('draft' in s) && !('requested_note' in s),
         '列表不应带 draft/requested_note');
+      assert.ok(s.chef_requested_at == null,
+        '访客列表不应带 chef_requested_at 的值');
     });
   await test('访客调所有 kitchen 写接口 → 401，数据不变',
     { api: '/api/kitchen/*（访客）', ac: '1' }, async () => {

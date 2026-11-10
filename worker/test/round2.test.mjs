@@ -6,7 +6,8 @@
 // 可选：
 //   ROUND2_CLAIM_TTL_MIN  临时实例的 CHEF_CLAIM_TTL_MIN（例如 0.05 = 3 秒）；
 //                         不设则「TTL 过期后可再领取」SKIP（默认 30 分钟等不起）
-//   ROUND2_RACE_TRIALS    每个并发用例重复次数，默认 5（claim-race 至少 20）
+//   ROUND2_RACE_TRIALS    每个并发用例重复次数，默认 5（claim-race 每轮至少 20）
+//   ROUND2_CLAIM_ROUNDS   claim-race 轮数，默认 1（验收用 5 → 5×20 次）
 //   CHEF_KEY_FILE         .dev.vars 的路径（只读；默认 worker/.dev.vars）
 //   API_TIMEOUT_MS        单请求超时，默认 15000
 //   STRICT=1              WARN（含 KNOWN_BUG）也算 FAIL
@@ -51,18 +52,7 @@ const uniq = () => `${RUN}${(++seq).toString(36)}${Math.random().toString(36).sl
 
 // 已确认的真实缺陷：用例照跑，失败记为 KNOWN_BUG（WARN + 汇总），不算 FAIL。
 // 修好后会自动变回 PASS 并提示把它从这里删掉。
-const KNOWN_BUGS = {
-  'claim-race': {
-    title: '并发 claim 同一道 pending 菜，两个都返回 200（锁被重复领取）',
-    repro: 'ROUND2_BASE=<临时实例> 下新建 mode=chef 的菜，' +
-      'Promise.all 两个 POST /api/chef/tasks/:id/claim（正确密钥）→ 偶发两个 200，' +
-      'claimed_at 相同或先后覆盖',
-    cause: 'src/index.ts claim：先 SELECT 判断 claimed_at 是否在 TTL 内，再无条件 ' +
-      "UPDATE ... WHERE id=? AND chef_status='pending'，UPDATE 没带 claimed_at 条件、" +
-      '也没检查 meta.changes（检查与写入不是原子的）。建议：WHERE 加 ' +
-      '(claimed_at IS NULL OR claimed_at < ?过期点)，changes=0 时返回 409 CONFLICT',
-  },
-};
+const KNOWN_BUGS = {}; // claim-race 已在 fix(worker) 修复（原子 UPDATE + changes 检查），改为普通断言
 const knownHits = [];
 
 const K = (m, p, o = {}) => req(m, p, { ...o, jar: auth });
@@ -143,8 +133,9 @@ async function setChef(enabled) {
   return expectOk(await K('PATCH', '/api/kitchen/settings', { json: { chef_enabled: enabled } }));
 }
 // 并发用例：失败时若已登记为 KNOWN_BUG → WARN，否则 FAIL
-// claim-race 复现率约 15%，至少跑 20 次才稳定抓到
-const trialsOf = (id) => (id === 'claim-race' ? Math.max(TRIALS, 20) : TRIALS);
+// claim-race 修复前复现率约 15–30%：每轮至少 20 次，ROUND2_CLAIM_ROUNDS 轮（默认 1）
+const CLAIM_ROUNDS = Math.max(1, Number(process.env.ROUND2_CLAIM_ROUNDS) || 1);
+const trialsOf = (id) => (id === 'claim-race' ? Math.max(TRIALS, 20) * CLAIM_ROUNDS : TRIALS);
 async function raceTest(id, name, meta, trialFn) {
   const TRIALS = trialsOf(id);
   return test(name, meta, async () => {
@@ -248,7 +239,7 @@ async function main() {
     const after = await getK(d.id);
     noErrors(R2.wholeDraftFrom(after.draft, [d.tag]), '原草稿');
   });
-  await test('draft：格式错的草稿一律 400 VALIDATION，菜保持 pending 无草稿', dm, async () => {
+  await test('draft：格式错的草稿一律 400 VALIDATION（超大体 413），菜保持 pending 无草稿', dm, async () => {
     const d = await createDish('chef');
     const tg = uniq();
     const base = () => R2.taggedDraft(tg);
@@ -261,6 +252,7 @@ async function main() {
       ['ingredients 是字符串', { json: { ...base(), ingredients: '盐 1克' } }, [400]],
       ['steps 是对象', { json: { ...base(), steps: { text: '炒' } } }, [400]],
       ['steps 元素是数字', { json: { ...base(), steps: [1, 2, 3] } }, [400]],
+      ['chef_message 是数字（v2.3.3 只收字符串）', { json: { ...base(), chef_message: 123 } }, [400]],
       ['chef_message 是对象', { json: { ...base(), chef_message: { a: 1 } } }, [400]],
       ['chef_message 是数组', { json: { ...base(), chef_message: ['写不了'] } }, [400]],
       ['tips 是数字', { json: { ...base(), tips: 5 } }, [400]],
@@ -269,7 +261,7 @@ async function main() {
       ['非法 JSON', { body: '{"ingredients": [', headers: { 'content-type': 'application/json' } }, [400]],
       ['JSON 数组而非对象', { json: '[1,2,3]' }, [400]],
       ['空请求体', { body: '', headers: { 'content-type': 'application/json' } }, [400]],
-      ['超大请求体（~1.2MB 步骤文字）', { json: { ...base(), steps: [{ text: big }, { text: '二' }, { text: '三' }] } }, [400, 413]],
+      ['超大请求体（~1.2MB 步骤文字，v2.3.3 → 413）', { json: { ...base(), steps: [{ text: big }, { text: '二' }, { text: '三' }] } }, [413]],
     ];
     const bad = [];
     for (const [label, o, statuses] of cases) {
@@ -285,15 +277,11 @@ async function main() {
     assert.ok(!bad.length, '以下格式错的草稿没有按约定拒绝：\n      ' + bad.join('\n      '));
     await stillPending(d.id, null, '格式错交稿');
   });
-  await test('draft：chef_message 给数字（约定是字符串）→ 服务端宽松转成字符串（WARN）', dm, async () => {
+  await test('draft：只交 chef_message 但它是数字 → 400 VALIDATION（v2.3.3）', dm, async () => {
     const d = await createDish('chef');
-    const r = await chef(d.id, 'draft', { json: { ingredients: [], steps: [], chef_message: 123 } });
-    if (r.status === 400) { noErrors(V.validateErrorBody(r.data, 'VALIDATION'), '错误体'); return; }
-    expectOk(r);
-    soft(false, 'chef_message=123（数字）被接受并转成字符串 "123"；约定写的是字符串，' +
-      '后端 str() 有意把有限数字转字符串——是否算格式错请组长定');
-    const after = await getK(d.id);
-    assert.equal(after.draft.chef_message, '123', '被接受时应存成字符串，不能存数字');
+    const e = expectErr(await chef(d.id, 'draft', { json: { ingredients: [], steps: [], chef_message: 123 } }), 400, 'VALIDATION');
+    assert.match(e.message, /chef_message/);
+    await stillPending(d.id, null, 'chef_message=数字');
   });
   await test('draft：没先 claim 也能交稿 → 200，状态 draft，草稿整份', dm, async () => {
     const d = await createDish('chef');
@@ -333,16 +321,24 @@ async function main() {
 
   // ---------- 并发 ----------
   const cc = { api: '并发（Promise.all）' };
-  await raceTest('claim-race', '并发：同一道菜两个 claim → 恰好一个成功', cc, async () => {
+  const claimStats = [];
+  await raceTest('claim-race', `并发：同一道菜两个 claim → 恰好一个成功、另一个 409 CONFLICT（${CLAIM_ROUNDS}×${Math.max(TRIALS, 20)}）`, cc, async (i) => {
+    const round = Math.ceil(i / Math.max(TRIALS, 20)) - 1;
+    claimStats[round] ??= { n: 0, double: 0, conflict: 0 };
     const d = await createDish('chef');
     const [a, b] = await Promise.all([chef(d.id, 'claim'), chef(d.id, 'claim')]);
     const errs = R2.judgeClaimRace(a, b);
+    const cs = claimStats[round];
+    cs.n++;
+    if (a.status === 200 && b.status === 200) cs.double++;
+    if ([a, b].some((r) => r.status === 409 && r.data?.error?.code === 'CONFLICT')) cs.conflict++;
     const t = await taskOf(d.id);
     const won = [a, b].filter((r) => r.status === 200).map((r) => r.data.claimed_at);
     if (won.length >= 1 && !won.includes(t?.claimed_at)) errs.push(`tasks 里的 claimed_at ${t?.claimed_at} 不是任何一个成功返回的值`);
     if (won.length === 2) errs.push(`两个返回的 claimed_at：${won.join(' / ')}`);
     return errs;
   });
+  log(`      claim 并发统计：${claimStats.map((x, i) => `第${i + 1}轮 ${x.n} 次 双成功 ${x.double} 次 / 409 CONFLICT ${x.conflict} 次`).join('；')}`);
   await raceTest('draft-race', '并发：同一道菜两份草稿 → 恰好一份成功，草稿整份不混拼', cc, async () => {
     const d = await createDish('chef');
     const ta = uniq(), tb = uniq();
@@ -363,6 +359,242 @@ async function main() {
     const [rd, rx] = await Promise.all([chef(d.id, 'draft', { json: R2.taggedDraft(tg) }),
       kitchen('POST', d.id, '/discard-draft', { json: {} })]);
     return R2.judgeDraftVsDiscard(rd, rx, tg, await getK(d.id));
+  });
+
+  // v2.3.3 原子化：discard / confirm 只对「此刻仍是 draft 的那份草稿」生效
+  await raceTest('discard-vs-ask', '并发：discard-draft vs ask-chef → 最终 pending，ask 不被覆盖', cc, async () => {
+    const d = await draftDish();
+    const note = `再写${uniq()}`;
+    const [rx, ra] = await Promise.all([kitchen('POST', d.id, '/discard-draft', { json: {} }),
+      kitchen('POST', d.id, '/ask-chef', { json: { note } })]);
+    return R2.judgeDiscardVsAsk(rx, ra, note, await getK(d.id));
+  });
+  await raceTest('confirm-vs-ask', '并发：confirm vs ask-chef → 最终 pending，正式内容与返回码一致', cc, async () => {
+    const d = await draftDish();
+    const [rc, ra] = await Promise.all([kitchen('POST', d.id, '/confirm', { json: {} }),
+      kitchen('POST', d.id, '/ask-chef', { json: { note: '再来' } })]);
+    return R2.judgeConfirmVsAsk(rc, ra, { draftTT: `T${d.tag}`.slice(0, 20), oldTT: null }, await getK(d.id));
+  });
+  await raceTest('confirm-vs-discard', '并发：confirm vs discard-draft → 恰好一个成功，另一个 409 BAD_STATE', cc, async () => {
+    const d = await draftDish();
+    const [rc, rx] = await Promise.all([kitchen('POST', d.id, '/confirm', { json: {} }),
+      kitchen('POST', d.id, '/discard-draft', { json: {} })]);
+    return R2.judgeConfirmVsDiscard(rc, rx, { draftTT: `T${d.tag}`.slice(0, 20), oldTT: null }, await getK(d.id));
+  });
+
+  // ---------- v2.3.3：servings / total_time 超 20 字 → 400 VALIDATION ----------
+  const lm = { api: 'servings / total_time ≤20 字（v2.3.3）' };
+  const s20 = '一'.repeat(18) + '人份'; // 正好 20 字
+  const s21 = '一'.repeat(19) + '人份'; // 21 字
+  const t21 = '一'.repeat(19) + '分钟';
+  const lenErr = (r, field) => {
+    const e = expectErr(r, 400, 'VALIDATION');
+    assert.ok(e.message.includes(field) && /20/.test(e.message),
+      `message 应点名 ${field} 和 20 字上限：${e.message}`);
+  };
+  await test('draft 交稿：servings / total_time 21 字 → 400；正好 20 字 → 200 原样保存', lm, async () => {
+    const d = await createDish('chef');
+    const tg = uniq();
+    lenErr(await chef(d.id, 'draft', { json: { ...R2.taggedDraft(tg), servings: s21 } }), 'servings');
+    lenErr(await chef(d.id, 'draft', { json: { ...R2.taggedDraft(tg), total_time: t21 } }), 'total_time');
+    await stillPending(d.id, null, '超长交稿');
+    const r = expectOk(await chef(d.id, 'draft', { json: { ...R2.taggedDraft(tg), servings: s20 } }));
+    assert.equal(r.draft.servings, s20, '20 字应原样保存，不截断');
+  });
+  await test('数字自动补单位后再量长度：18 位数字+分钟=20 字 OK，19 位+分钟=21 字 → 400', lm, async () => {
+    const d = await createDish('chef');
+    const tg = uniq();
+    lenErr(await chef(d.id, 'draft', { json: { ...R2.taggedDraft(tg), total_time: 1e18 } }), 'total_time');
+    const r = expectOk(await chef(d.id, 'draft', { json: { ...R2.taggedDraft(tg), total_time: 1e17, servings: 3 } }));
+    assert.equal(r.draft.total_time, '100000000000000000分钟');
+    assert.equal(r.draft.servings, '3人份');
+  });
+  await test('手写 POST：servings / total_time 21 字 → 400，不入库', lm, async () => {
+    for (const [k, v] of [['servings', s21], ['total_time', t21]]) {
+      const name = tname('超长');
+      const form = makeForm({ name, category: '家常菜', mode: 'manual',
+        ingredients: [{ name: '盐', amount: '1克' }], steps: [{ text: '炒' }], [k]: v },
+      [image('png', `${RUN}-${seq}-L`)]);
+      const r = await K('POST', '/api/kitchen/dishes', { form });
+      if (r.status >= 200 && r.status < 300 && r.data?.id) guard.addCreated(r.data.id);
+      lenErr(r, k);
+      const list = expectOk(await A('GET', '/api/dishes')).dishes;
+      assert.ok(!list.some((x) => x.name === name), '被拒的手写菜不应入库');
+    }
+  });
+  await test('PATCH：servings / total_time 21 字 → 400，原值不变；20 字 → 200', lm, async () => {
+    const d = await manualDish();
+    for (const [k, v] of [['servings', s21], ['total_time', t21], ['total_time', 1e18]]) {
+      lenErr(await kitchen('PATCH', d.id, '', { json: { [k]: v } }), k);
+    }
+    const after = await getK(d.id);
+    assert.deepEqual([after.servings, after.total_time], [d.servings, d.total_time]);
+    assert.equal(expectOk(await kitchen('PATCH', d.id, '', { json: { servings: s20 } })).servings, s20);
+  });
+  await test('confirm：改成 21 字 → 400，仍是 draft；合并后的最终值（含继承草稿）≤20 才确认', lm, async () => {
+    const d = await draftDish();
+    lenErr(await kitchen('POST', d.id, '/confirm', { json: { servings: s21 } }), 'servings');
+    lenErr(await kitchen('POST', d.id, '/confirm', { json: { total_time: 1e18 } }), 'total_time');
+    const mid = await getK(d.id);
+    assert.equal(mid.chef_status, 'draft', '400 后应仍是 draft');
+    noErrors(R2.wholeDraftFrom(mid.draft, [d.tag]), '草稿不应被改');
+    // 只改 servings，total_time 继承草稿（≤20）→ 200
+    const c = expectOk(await kitchen('POST', d.id, '/confirm', { json: { servings: s20 } }));
+    assert.equal(c.servings, s20);
+    assert.equal(c.total_time, `T${d.tag}`.slice(0, 20), 'total_time 应继承草稿');
+  });
+
+  // ---------- v2.3.3 R1-06：安全头 / 不发 CORS ----------
+  const hd = { api: '响应头（R1-06）' };
+  const corsHdrs = (r) => ['access-control-allow-origin', 'access-control-allow-credentials']
+    .filter((h) => r.headers.get(h) !== null).map((h) => `${h}: ${r.headers.get(h)}`);
+  await test('所有 /api 响应带 nosniff：health / 列表 / 404 / 401 / 照片', hd, async () => {
+    const d = await createDish('manual');
+    const rs = [await A('GET', '/api/health'), await A('GET', '/api/dishes'),
+      await A('GET', `/api/dishes/${crypto.randomUUID()}`), await A('GET', '/api/nope'),
+      await A('POST', '/api/kitchen/dishes'), await A('GET', d.photo_url),
+      await C('GET', '/api/chef/tasks', {}, WRONG_KEY)];
+    assert.equal(rs[5].status, 200, `照片应可读：${short(rs[5])}`);
+    for (const r of rs) {
+      assert.equal(r.headers.get('x-content-type-options'), 'nosniff', `${r.where}（${r.status}）缺 nosniff`);
+    }
+  });
+  await test('不发 CORS 头：公开读 / 登录 / kitchen / 厨驼 / 预检，任何 Origin 都没有 ACAO，永不 Allow-Credentials', hd, async () => {
+    const origins = [null, 'https://evil.example', 'http://localhost:5173', 'http://127.0.0.1:4173'];
+    const bad = [];
+    for (const o of origins) {
+      const headers = o ? { origin: o } : {};
+      for (const r of [await A('GET', '/api/health', { headers }),
+        await K('GET', '/api/me', { headers }),
+        await K('GET', '/api/kitchen/storage', { headers }),
+        await A('POST', '/api/dev/login', { headers }),
+        await C('GET', '/api/chef/tasks', { headers }),
+        await A('OPTIONS', '/api/kitchen/dishes', { headers: { ...headers,
+          'access-control-request-method': 'POST' } })]) {
+        const h = corsHdrs(r);
+        if (h.length) bad.push(`${r.where} Origin=${o}：${h.join('; ')}`);
+        if (r.headers.get('access-control-allow-origin') === '*' &&
+            r.headers.get('access-control-allow-credentials') === 'true') bad.push(`${r.where}：ACAO * + credentials`);
+      }
+    }
+    assert.ok(!bad.length, '仍在发 CORS 头：\n      ' + bad.join('\n      '));
+  });
+
+  // ---------- v2.3.3 R1-07：只写了编号 ----------
+  const on = { api: '只写了编号（R1-07）' };
+  const onlyNum = (r, field, index, wordRe, prefix = '') => {
+    const e = expectErr(r, 400, 'VALIDATION');
+    assert.ok(e.message.includes(prefix), `message 应以「${prefix}」开头：${e.message}`);
+    assert.match(e.message, wordRe);
+    const hit = (e.details || []).find((x) => V.isObj(x) && x.field === field && x.index === index &&
+      x.reason === 'only_number');
+    assert.ok(hit, `details 应含 {field:"${field}", index:${index}, reason:"only_number"}：${JSON.stringify(e.details)}`);
+    assert.ok(e.message.includes(hit.message), 'details 里的 message 应与 message 中的文案一致');
+    assert.match(hit.message, new RegExp(`第 ${index} `), 'index 应与文案的「第 N」一致（从 1 起）');
+  };
+  const manualForm = (fields) => makeForm({ name: tname('编号'), category: '家常菜', mode: 'manual', ...fields },
+    [image('png', `${RUN}-${seq}-N`)]);
+  const postManual = async (fields) => {
+    const r = await K('POST', '/api/kitchen/dishes', { form: manualForm(fields) });
+    if (r.status >= 200 && r.status < 300 && r.data?.id) guard.addCreated(r.data.id);
+    return r;
+  };
+  await test('手写 POST：第 3 步只写「第三步」/「1.」/「Step 3:」→ 400，details 定位第 3 步', on, async () => {
+    for (const t of ['第三步', '1.', 'Step 3:', '第一步：']) {
+      onlyNum(await postManual({ steps: ['洗菜', '切块', t] }), 'steps', 3,
+        /^第 3 步只写了编号，补上做法或删掉这一步$/);
+    }
+  });
+  await test('手写 POST：食材名 / 小贴士只写编号 → 400，同样的结构化 details', on, async () => {
+    onlyNum(await postManual({ ingredients: [{ name: '盐', amount: '1克' }, { name: '2.', amount: '3克' }] }),
+      'ingredients', 2, /第 2 项食材只写了编号/);
+    onlyNum(await postManual({ tips: ['少放盐', '好吃', '3、'] }), 'tips', 3, /第 3 条小贴士只写了编号/);
+  });
+  await test('PATCH / confirm：只写编号的步骤 → 400，内容不变', on, async () => {
+    const m = await manualDish();
+    onlyNum(await kitchen('PATCH', m.id, '', { json: { steps: [{ text: '第二步' }] } }), 'steps', 1,
+      /第 1 步只写了编号/);
+    assert.deepEqual((await getK(m.id)).steps, m.steps, 'PATCH 400 后步骤不应改变');
+    const d = await draftDish();
+    onlyNum(await kitchen('POST', d.id, '/confirm', { json: { steps: ['炒', '焖', '第三步'] } }), 'steps', 3,
+      /^第 3 步只写了编号，补上做法或删掉这一步$/); // confirm 先按手写规则解析修改，文案同手写
+    assert.equal((await getK(d.id)).chef_status, 'draft');
+  });
+  await test('厨驼交稿：同一套校验和文案（前缀「草稿没通过校验：」）', on, async () => {
+    const d = await createDish('chef');
+    const body = { ...R2.taggedDraft(uniq()), steps: ['洗菜', '切块', '第三步'] };
+    onlyNum(await chef(d.id, 'draft', { json: body }), 'steps', 3,
+      /第 3 步只写了编号，补上做法或删掉这一步/, '草稿没通过校验：');
+    onlyNum(await chef(d.id, 'draft', { json: { ...R2.taggedDraft(uniq()), tips: ['1.'] } }), 'tips', 1,
+      /第 1 条小贴士只写了编号/, '草稿没通过校验：');
+    await stillPending(d.id, null, '只写编号交稿');
+  });
+
+  // ---------- v2.3.3 R1-08：JSON 请求体 64KB ----------
+  const bl = { api: '请求体上限 64KB（R1-08）' };
+  const LIM = 65536;
+  // 用一个会被忽略的 _pad 字段把 JSON 撑到正好 n 字节
+  const padTo = (obj, n) => {
+    const base = JSON.stringify({ ...obj, _pad: '' });
+    const need = n - Buffer.byteLength(base);
+    assert.ok(need >= 0, 'padTo：基础体已超过目标大小');
+    const t = JSON.stringify({ ...obj, _pad: 'x'.repeat(need) });
+    assert.equal(Buffer.byteLength(t), n);
+    return t;
+  };
+  const tooLarge = (r, bytes) => {
+    const e = expectErr(r, 413, 'TOO_LARGE');
+    const kb = Math.ceil(bytes / 1024).toLocaleString('en-US');
+    assert.equal(e.message, `内容太大了（${kb}KB），上限 64KB`);
+  };
+  await test('厨驼交稿：65,536 字节 → 200；65,537 字节 → 413「内容太大了（65KB），上限 64KB」', bl, async () => {
+    const d = await createDish('chef');
+    const tg = uniq();
+    tooLarge(await chef(d.id, 'draft', { json: padTo(R2.taggedDraft(tg), LIM + 1) }), LIM + 1);
+    await stillPending(d.id, null, '413 交稿');
+    const r = expectOk(await chef(d.id, 'draft', { json: padTo(R2.taggedDraft(tg), LIM) }));
+    noErrors(R2.wholeDraftFrom(r.draft, [tg]), '64KB 整的草稿');
+  });
+  await test('PATCH / confirm：65,537 字节 → 413，内容不变；65,536 字节 PATCH → 200', bl, async () => {
+    const m = await manualDish();
+    tooLarge(await kitchen('PATCH', m.id, '', { json: padTo({ note: '改备注' }, LIM + 1) }), LIM + 1);
+    assert.equal((await getK(m.id)).note, m.note);
+    assert.equal(expectOk(await kitchen('PATCH', m.id, '', { json: padTo({ note: '改备注' }, LIM) })).note, '改备注');
+    const d = await draftDish();
+    tooLarge(await kitchen('POST', d.id, '/confirm', { json: padTo({}, 200_000) }), 200_000);
+    assert.equal((await getK(d.id)).chef_status, 'draft');
+  });
+  await test('没有 Content-Length（分块上传）也按实际字节数拦：70,000 字节 → 413（69KB）', bl, async () => {
+    const d = await createDish('chef');
+    guard.assertOwned(d.id, '分块交稿');
+    const bytes = new TextEncoder().encode(padTo(R2.taggedDraft(uniq()), 70_000));
+    const stream = new ReadableStream({ start(ctl) {
+      for (let i = 0; i < bytes.length; i += 8192) ctl.enqueue(bytes.slice(i, i + 8192));
+      ctl.close();
+    } });
+    const res = await fetch(new URL(`/api/chef/tasks/${d.id}/draft`, BASE), { method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-chef-key': KEY }, body: stream, duplex: 'half' });
+    const data = await res.json().catch(() => null);
+    tooLarge({ status: res.status, data, where: 'POST 分块交稿', text: () => JSON.stringify(data) }, 70_000);
+    await stillPending(d.id, null, '分块 413');
+  });
+
+  // ---------- v2.3.3：chef_requested_at 对访客隐藏 ----------
+  await test('chef_requested_at：访客详情 null、列表不带值；登录后照常返回', { api: 'GET /api/dishes（v2.3.3）' }, async () => {
+    const p = await createDish('chef');
+    const dr = await draftDish();
+    for (const d of [p, dr]) {
+      const anon = expectOk(await A('GET', `/api/dishes/${d.id}`));
+      assert.equal(anon.chef_requested_at, null, `访客详情（${anon.chef_status}）chef_requested_at 应为 null`);
+      noErrors(V.validateDish(anon, { anon: true }), '访客 Dish');
+      const me = await getK(d.id);
+      assert.ok(V.isIsoUtc(me.chef_requested_at), `登录后（${me.chef_status}）应返回 chef_requested_at`);
+    }
+    const items = expectOk(await A('GET', '/api/dishes')).dishes;
+    for (const d of [p, dr]) {
+      const x = items.find((i) => i.id === d.id);
+      assert.ok(x && x.chef_requested_at == null, '访客列表不应带 chef_requested_at 的值');
+    }
   });
 
   // ---------- total_time / 未登录不泄露草稿 ----------
@@ -398,27 +630,28 @@ async function main() {
     const k = await K('GET', `/api/dishes/${P.draft.id}`);
     assert.ok(k.text().includes(P.draft.tag), '登录后应能看到草稿（对照组）');
   });
-  await test('未登录列表 total_time：只有 confirmed 的菜带值', tm, async () => {
+  await test('total_time：公开列表 / 详情只显示最近一次确认的值（重新找厨驼后仍是旧值）', tm, async () => {
     if (!S.leakSetup) throw new Skip('准备失败');
     const items = expectOk(await A('GET', '/api/dishes')).dishes;
     const mine = (id) => items.find((x) => x.id === id);
-    const all = [P.pending, P.draft, P.confirmed, P.redraft].map((d) => mine(d.id));
-    assert.ok(all.every(Boolean), '本次创建的菜应都在列表里');
-    if (all.every((x) => !('total_time' in x))) {
+    const cases = [[P.pending, null], [P.draft, null],
+      [P.confirmed, `T${P.confirmed.tag}`.slice(0, 20)], [P.redraft, P.redraft.formal]];
+    assert.ok(cases.every(([d]) => mine(d.id)), '本次创建的菜应都在列表里');
+    if (cases.every(([d]) => !('total_time' in mine(d.id)))) {
       throw new Skip('src 的列表还没有 total_time 字段（泄露检查已在上一条单独跑过）');
     }
     const hard = [];
-    for (const x of all) {
-      const formal = x.id === P.redraft.id ? P.redraft.formal : null;
+    for (const [d, formal] of cases) {
+      const x = mine(d.id);
       const r = R2.listTotalTimeIssues(x, { formal });
-      if (r.absent) hard.push(`${x.id} 缺 total_time 字段（其他条目有）`);
+      if (r.absent) hard.push(`${d.id} 列表缺 total_time 字段`);
       hard.push(...r.hard);
-      for (const s of r.soft) soft(false, s);
+      const det = expectOk(await A('GET', `/api/dishes/${d.id}`));
+      if (det.total_time !== formal) hard.push(`${x.chef_status} 详情 total_time=${JSON.stringify(det.total_time)}，应为 ${JSON.stringify(formal)}`);
+      if (det.total_time !== x.total_time) hard.push(`${d.id} 列表与详情 total_time 不一致`);
     }
-    assert.equal(mine(P.confirmed.id).total_time, `T${P.confirmed.tag}`.slice(0, 20),
-      'confirmed 的菜在列表里应显示其正式 total_time');
-    assert.equal(mine(P.pending.id).total_time, null, '新建 pending 的菜 total_time 应为 null');
-    assert.equal(mine(P.draft.id).total_time, null, 'draft 的菜（从没确认过）total_time 应为 null');
+    assert.equal(mine(P.redraft.id).chef_status, 'draft');
+    assert.ok(!JSON.stringify(items).includes(`T${P.redraft.newTag}`), '新草稿的 total_time 不应出现在公开列表');
     assert.ok(!hard.length, hard.join('\n      '));
   });
 }

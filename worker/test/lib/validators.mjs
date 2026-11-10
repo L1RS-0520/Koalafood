@@ -238,6 +238,10 @@ export function validateDish(d, opts = {}) {
     if (d.requested_note !== null) {
       errs.push('未登录时 requested_note 应为 null');
     }
+    // v2.3.3：chef_requested_at 对访客隐藏（与 draft 同口径：null）
+    if (d.chef_requested_at !== null) {
+      errs.push('未登录时 chef_requested_at 应为 null');
+    }
   } else if (d.chef_status === 'draft') {
     if (!isObj(d.draft)) {
       errs.push('draft 状态下 draft 应为对象');
@@ -479,6 +483,26 @@ export function validateErrorBody(b, code) {
   if (!hasChinese(m)) {
     errs.push(`error.message 不是中文提示：${JSON.stringify(m)}`);
   }
+  errs.push(...validateDetails(b.error.details));
+  return errs;
+}
+
+// details（可选）：字符串，或 v2.3.3 的定位对象 {field, index(从 1 起), reason, message}
+export function validateDetails(d) {
+  if (d === undefined) return [];
+  if (!Array.isArray(d)) return ['error.details 应为数组'];
+  const errs = [];
+  d.forEach((x, i) => {
+    if (typeof x === 'string') return;
+    if (!isObj(x)) { errs.push(`details[${i}] 应为字符串或对象`); return; }
+    if (!['steps', 'ingredients', 'tips'].includes(x.field)) errs.push(`details[${i}].field 非法：${x.field}`);
+    if (!Number.isInteger(x.index) || x.index < 1) errs.push(`details[${i}].index 应为从 1 起的整数：${x.index}`);
+    if (typeof x.reason !== 'string' || !x.reason) errs.push(`details[${i}].reason 缺失`);
+    if (!hasChinese(x.message)) errs.push(`details[${i}].message 不是中文`);
+    else if (Number.isInteger(x.index) && !x.message.includes(`第 ${x.index} `)) {
+      errs.push(`details[${i}].index=${x.index} 与文案「${x.message}」的序号不一致`);
+    }
+  });
   return errs;
 }
 
