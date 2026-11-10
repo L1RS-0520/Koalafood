@@ -1,15 +1,16 @@
 // P4 编辑页（仅大王）：所有字段 + 照片增删排序 + 食材步骤编辑区；?confirm=1 为「修改后确认」草稿
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, ApiError, CHEF_STATUS, isEmptyContent, LIMITS, type Dish, type RecipeContent } from '../api'
+import { api, ApiError, BODY_TOO_LARGE_TEXT, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, type Dish, type RecipeContent } from '../api'
 import { BasicFields, validateBasics, type BasicErrors, type Basics } from '../components/BasicFields'
 import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
 import { checkFiles, PhotoManager } from '../components/PhotoManager'
 import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/StorageMeter'
-import { cleanContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
+import { cleanContent, RecipeEditor, type EditorIssue, type EditorMode } from '../components/RecipeEditor'
 import { BusyOverlay, LeaveGuard, PageLoading, StatePanel, TopBar } from '../components/ui'
 import { useApp } from '../lib/app'
+import { diffPatch, fieldIssueOf, metaErrors, rawIndexOf, touchesContent } from '../lib/editPatch'
 import { compressAll } from '../lib/compress'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { photoIndexOf, tooLargeText } from '../lib/util'
@@ -27,6 +28,8 @@ export function EditPage() {
   const [basics, setBasics] = useState<Basics>({ name: '', category: '', note: '' })
   const [content, setContent] = useState<RecipeContent | null>(null)
   const [initial, setInitial] = useState('')
+  /** 打开时的原值：保存时和它做 diff，只发改过的字段 */
+  const [orig, setOrig] = useState<{ basics: Basics; content: RecipeContent } | null>(null)
   const [editorMode, setEditorMode] = useState<EditorMode>('fine')
   const [errors, setErrors] = useState<BasicErrors>({})
   const [saving, setSaving] = useState(false)
@@ -36,6 +39,10 @@ export function EditPage() {
   /** 429：顶部提示条（文字修改照常可保存）；507：弹框 */
   const [quota, setQuota] = useState(false)
   const [full, setFull] = useState(false)
+  // 这一页收到过 507：顶部红条立刻改“满啦”（刷新后按接口重判，不记住）
+  const [got507, setGot507] = useState(false)
+  // 后端逐条校验错误（v2.3.3 details）：在那一条旁边一直显示，改动那一栏前不消失
+  const [issue, setIssue] = useState<EditorIssue | null>(null)
   const [storage] = useStorage(true)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   useTitle(confirmMode ? '修改后确认' : '编辑菜品')
@@ -59,6 +66,7 @@ export function EditPage() {
         setBasics(b)
         setContent(c)
         setInitial(snap(b, c))
+        setOrig({ basics: { ...b }, content: { ...c, ingredients: c.ingredients.map((x) => ({ ...x })), steps: c.steps.map((x) => ({ ...x })), tips: [...c.tips] } })
         setEditorMode(isEmptyContent(c) ? 'quick' : 'fine')
       })
       .catch((e) => alive && setLoadErr(e instanceof ApiError ? e.message : '这道菜没加载出来'))
@@ -134,7 +142,7 @@ export function EditPage() {
         setQuota(true)
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
-      if (code === 'STORAGE_FULL') setFull(true)
+      if (code === 'STORAGE_FULL') (setFull(true), setGot507(true))
     } finally {
       setPhotoBusy(false)
     }
@@ -180,19 +188,42 @@ export function EditPage() {
       app.toast('还有必填项没填好', 'err')
       return
     }
+    // 没有打开时的原值就没法 diff：拦住，不能退回全量发送（全量会把厨驼菜谱改成手写并作废任务）
+    if (!confirmMode && !orig) {
+      app.toast('这道菜还没加载完，稍等一下再保存', 'err')
+      return
+    }
+    const metaErr = metaErrors(content)
+    if (metaErr.length) {
+      app.toast(metaErr[0], 'err')
+      return
+    }
     setSaving(true)
     try {
       const c = cleanContent(content)
       if (confirmMode) {
         await api.confirmDraft(dish.id, c)
-        app.toast('改好并确认啦，正式上菜！', 'ok')
+        app.toast(CONFIRMED_TEXT, 'ok')
       } else {
-        await api.updateDish(dish.id, { name: basics.name.trim(), category: basics.category, note: basics.note.trim() || null, ...c })
-        app.toast('保存好啦', 'ok')
+        // 只发真正改过的字段（后端审查 P1-1）：只改菜名/分类/备注时不带内容键，来源和厨驼任务都不变
+        const patch = diffPatch(orig!, basics, content)
+        if (Object.keys(patch).length) await api.updateDish(dish.id, patch)
+        app.toast(Object.keys(patch).length ? '保存好啦' : '没有改动', 'ok')
       }
       setSaved(true)
       setTimeout(() => nav(detail, { replace: true }), 0)
     } catch (err) {
+      // 后端 v2.3.3：JSON 请求体超过 64KB → 413 TOO_LARGE（保存不带照片，所以一定是内容太长）；表单原样保留
+      if (err instanceof ApiError && err.code === 'TOO_LARGE') {
+        app.toast(BODY_TOO_LARGE_TEXT, 'err')
+        return
+      }
+      const fi = fieldIssueOf(err)
+      const row = fi && content ? rawIndexOf(content, fi.field, fi.index) : -1
+      if (fi && row >= 0) {
+        setIssue({ field: fi.field, index: row, message: fi.message })
+        return
+      }
       const code = app.handleError(err, '没保存上，再试一次')
       if (code === 'BAD_STATE') setTimeout(() => nav(detail, { replace: true }), 600)
     } finally {
@@ -200,7 +231,9 @@ export function EditPage() {
     }
   }
 
-  const chefTaskWillDrop = !confirmMode && (dish.chef_status === CHEF_STATUS.pending || dish.chef_status === CHEF_STATUS.draft)
+  // 只有改了食材/步骤等内容才会作废厨驼任务（只改菜名/分类/备注不会）
+  const contentChanged = !!orig && !!content && touchesContent(diffPatch(orig, basics, content))
+  const chefTaskWillDrop = !confirmMode && contentChanged && (dish.chef_status === CHEF_STATUS.pending || dish.chef_status === CHEF_STATUS.draft)
 
   return (
     <main className="page page--form">
@@ -230,7 +263,7 @@ export function EditPage() {
                 自己保存后厨驼这次的任务就作废了。
               </p>
             )}
-            <StorageWarn s={storage} />
+            <StorageWarn s={storage} got507={got507} />
             <section className="form-card" aria-labelledby="h-photos" id="f-photos">
               <h2 className="form-card-title" id="h-photos">
                 照片
@@ -254,7 +287,15 @@ export function EditPage() {
           </>
         )}
         <section className="form-card">
-          <RecipeEditor value={content} onChange={setContent} mode={editorMode} onModeChange={setEditorMode} title="食材和步骤" />
+          <RecipeEditor
+            value={content}
+            onChange={setContent}
+            mode={editorMode}
+            onModeChange={setEditorMode}
+            title="食材和步骤"
+            issue={issue}
+            onIssueClear={() => setIssue(null)}
+          />
         </section>
         <div className="submit-bar submit-bar--split">
           <Link className="btn btn--ghost btn--lg" to={detail}>

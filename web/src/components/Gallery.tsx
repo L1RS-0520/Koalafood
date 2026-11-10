@@ -7,34 +7,114 @@ import { Icon } from './Icon'
 
 function useSnapIndex(ref: React.RefObject<HTMLDivElement | null>, count: number) {
   const [idx, setIdx] = useState(0)
+  const idxRef = useRef(0)
+  const progRef = useRef<number | null>(null)
+  const endTimer = useRef(0)
+
+  const apply = useCallback(
+    (i: number) => {
+      const n = Math.max(0, Math.min(count - 1, i))
+      if (idxRef.current === n) return
+      idxRef.current = n
+      setIdx(n)
+    },
+    [count],
+  )
+
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const on = () => {
-      const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth))
-      setIdx(Math.max(0, Math.min(count - 1, i)))
+    const fromScroll = () => {
+      if (progRef.current !== null) return
+      apply(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
     }
-    el.addEventListener('scroll', on, { passive: true })
-    return () => el.removeEventListener('scroll', on)
-  }, [ref, count])
+    const finishProg = () => {
+      const target = progRef.current
+      if (target === null) {
+        fromScroll()
+        return
+      }
+      const expected = target * el.clientWidth
+      if (Math.abs(el.scrollLeft - expected) > 2) {
+        el.scrollTo({ left: expected, behavior: 'auto' })
+      }
+      progRef.current = null
+      window.clearTimeout(endTimer.current)
+      apply(target)
+    }
+    const onPointerDown = () => {
+      if (progRef.current === null) return
+      progRef.current = null
+      window.clearTimeout(endTimer.current)
+    }
+    el.addEventListener('scroll', fromScroll, { passive: true })
+    el.addEventListener('scrollend', finishProg)
+    el.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      el.removeEventListener('scroll', fromScroll)
+      el.removeEventListener('scrollend', finishProg)
+      el.removeEventListener('pointerdown', onPointerDown)
+      window.clearTimeout(endTimer.current)
+    }
+  }, [ref, count, apply])
+
   const go = useCallback(
     (i: number, smooth = true) => {
       const el = ref.current
       if (!el) return
       const n = (i + count) % count
-      el.scrollTo({ left: n * el.clientWidth, behavior: smooth ? 'smooth' : 'auto' })
-      setIdx(n)
+      const expected = n * el.clientWidth
+      const interrupt = progRef.current !== null
+      progRef.current = n
+      apply(n)
+      window.clearTimeout(endTimer.current)
+      if (Math.abs(el.scrollLeft - expected) <= 2) {
+        progRef.current = null
+        return
+      }
+      // 连续点箭头/缩略图/键盘时，上一段 smooth + scroll-snap 会叠在一起，Chrome 常跳回第 1 张。
+      // 被打断就改瞬时到位；单次切换仍用平滑滚动。
+      el.scrollTo({ left: expected, behavior: smooth && !interrupt ? 'smooth' : 'auto' })
+      endTimer.current = window.setTimeout(() => {
+        if (progRef.current === null) return
+        const t = progRef.current
+        progRef.current = null
+        if (Math.abs(el.scrollLeft - t * el.clientWidth) > 2) {
+          el.scrollTo({ left: t * el.clientWidth, behavior: 'auto' })
+        }
+        apply(t)
+      }, 500)
     },
-    [ref, count],
+    [ref, count, apply],
   )
-  return [idx, go] as const
+  return [idx, go, idxRef] as const
+}
+
+const HINT_KEY = 'koala-canteen:swipe-hint-seen'
+/** 手机首次进入多图相册：提示一次“左右滑动”，1.5 秒后淡出（设计 §5.4，走查 P2-4） */
+function useSwipeHint(multi: boolean) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (!multi || typeof matchMedia === 'undefined' || !matchMedia('(hover: none)').matches) return
+    try {
+      if (localStorage.getItem(HINT_KEY)) return
+      localStorage.setItem(HINT_KEY, '1')
+    } catch {
+      return
+    }
+    setShow(true)
+    const t = setTimeout(() => setShow(false), 1500)
+    return () => clearTimeout(t)
+  }, [multi])
+  return show
 }
 
 export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
   const track = useRef<HTMLDivElement>(null)
-  const [idx, go] = useSnapIndex(track, photos.length)
+  const [idx, go, idxRef] = useSnapIndex(track, photos.length)
   const [zoom, setZoom] = useState<number | null>(null)
   const multi = photos.length > 1
+  const hint = useSwipeHint(multi)
 
   if (photos.length === 0) {
     return (
@@ -48,15 +128,14 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
   return (
     <section className="gallery" aria-roledescription="相册" aria-label={`${name}的照片`}>
       <div className="gallery-frame">
-        <span className="tape tape--l" aria-hidden="true" />
-        <span className="tape tape--r" aria-hidden="true" />
         <div
           className="gallery-track"
           ref={track}
           tabIndex={multi ? 0 : -1}
           onKeyDown={(e) => {
-            if (e.key === 'ArrowRight') go(idx + 1)
-            if (e.key === 'ArrowLeft') go(idx - 1)
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+            e.preventDefault()
+            go(idxRef.current + (e.key === 'ArrowRight' ? 1 : -1))
           }}
         >
           {photos.map((p, i) => (
@@ -73,10 +152,10 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
         </div>
         {multi && (
           <>
-            <button type="button" className="gallery-arrow gallery-arrow--l" onClick={() => go(idx - 1)} aria-label="上一张">
+            <button type="button" className="gallery-arrow gallery-arrow--l" onClick={() => go(idxRef.current - 1)} aria-label="上一张">
               <Icon name="left" />
             </button>
-            <button type="button" className="gallery-arrow gallery-arrow--r" onClick={() => go(idx + 1)} aria-label="下一张">
+            <button type="button" className="gallery-arrow gallery-arrow--r" onClick={() => go(idxRef.current + 1)} aria-label="下一张">
               <Icon name="right" />
             </button>
             <span className="gallery-count">
@@ -84,9 +163,16 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
             </span>
           </>
         )}
-        <span className="gallery-zoom-hint" aria-hidden="true">
-          <Icon name="expand" size={16} />
-        </span>
+        {hint && (
+          <span className="gallery-swipe-hint" aria-hidden="true">
+            <Icon name="left" size={16} />
+            左右滑动
+            <Icon name="right" size={16} />
+          </span>
+        )}
+        <button type="button" className="gallery-zoom" onClick={() => setZoom(idx)} aria-label="放大看">
+          <Icon name="expand" size={18} />
+        </button>
       </div>
       {multi && (
         <>
@@ -119,16 +205,16 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
 
 function Lightbox({ photos, start, name, onClose }: { photos: Photo[]; start: number; name: string; onClose: (i: number) => void }) {
   const track = useRef<HTMLDivElement>(null)
-  const [idx, go] = useSnapIndex(track, photos.length)
-  const idxRef = useRef(start)
-  idxRef.current = idx
+  const [idx, go, idxRef] = useSnapIndex(track, photos.length)
   useEffect(() => {
     go(start, false)
     document.body.classList.add('no-scroll')
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose(idxRef.current)
-      if (e.key === 'ArrowRight') go(idxRef.current + 1)
-      if (e.key === 'ArrowLeft') go(idxRef.current - 1)
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault()
+        go(idxRef.current + (e.key === 'ArrowRight' ? 1 : -1))
+      }
     }
     document.addEventListener('keydown', onKey)
     const closeBtn = document.querySelector<HTMLElement>('.lightbox-close')
@@ -157,12 +243,28 @@ function Lightbox({ photos, start, name, onClose }: { photos: Photo[]; start: nu
           <span className="lightbox-count">
             第 {idx + 1}/{photos.length} 张
           </span>
-          <button type="button" className="gallery-arrow gallery-arrow--l lightbox-arrow" onClick={() => go(idx - 1)} aria-label="上一张">
+          <button type="button" className="gallery-arrow gallery-arrow--l lightbox-arrow" onClick={() => go(idxRef.current - 1)} aria-label="上一张">
             <Icon name="left" />
           </button>
-          <button type="button" className="gallery-arrow gallery-arrow--r lightbox-arrow" onClick={() => go(idx + 1)} aria-label="下一张">
+          <button type="button" className="gallery-arrow gallery-arrow--r lightbox-arrow" onClick={() => go(idxRef.current + 1)} aria-label="下一张">
             <Icon name="right" />
           </button>
+          {/* 底部缩略图条（设计 详情页-多图相册 ③，走查 P2-5） */}
+          <div className="lightbox-thumbs" role="tablist" aria-label="选择照片">
+            {photos.map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                role="tab"
+                aria-selected={i === idx}
+                className={cx('lightbox-thumb', i === idx && 'on')}
+                onClick={() => go(i)}
+                aria-label={`第 ${i + 1} 张`}
+              >
+                <img src={p.url} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
         </>
       )}
     </div>,

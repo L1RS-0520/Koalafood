@@ -187,7 +187,7 @@ export function RecipeBody({
           <Icon name="bowl" size={20} />
           食材
           <span className="sec-sfx" aria-hidden="true">
-            READY?
+            准备！
           </span>
           {content.ingredients.length > 0 && <span className="sec-count">{content.ingredients.length} 样 · 点一下划掉</span>}
         </h2>
@@ -198,7 +198,7 @@ export function RecipeBody({
           <Icon name="pencil" size={20} />
           步骤
           <span className="sec-sfx sec-sfx--green" aria-hidden="true">
-            SIZZLE!
+            滋啦！
           </span>
         </h2>
         {hasSteps ? <ComicPanels steps={content.steps} /> : <EmptyPanels hint={emptyHint} action={emptyAction} />}

@@ -1,9 +1,9 @@
 // ⚠️ 接口字段名与取值集中在这里（后端可能还会微调，只改这个文件）
-// 依据：app/docs/接口约定.md 末尾「v2.1 最终定稿」（唯一准绳）+ 需求文档 v2.0 第 4 节
+// 依据：app/docs/接口约定.md 开头的「v2.3.2 当前有效版」（后端审查 P2-3）
 
 /** 菜品状态字段名（后端 DishSummary / Dish 上） */
 export const STATUS_FIELD = 'chef_status'
-/** 兼容读取的旧字段名（v2 草案曾用 recipe_status，D1 表里叫 status） */
+/** 兼容读取的旧字段名（v2 草案曾用 recipe_status，D1 表里叫 status）。后端现在只返回 chef_status，只为兼容旧 mock 数据保留 */
 export const STATUS_FIELD_FALLBACKS = ['recipe_status', 'status'] as const
 
 /** 菜品状态取值 */
@@ -17,7 +17,7 @@ export const CHEF_STATUS = {
 } as const
 export type ChefStatus = (typeof CHEF_STATUS)[keyof typeof CHEF_STATUS]
 
-/** 旧取值 → 新取值（兼容 v2 草案） */
+/** 旧取值 → 新取值（兼容 v2 草案）。后端只会返回 pending/draft/confirmed，其余只为兼容旧 mock 数据保留 */
 export const STATUS_ALIASES: Record<string, ChefStatus> = {
   pending: 'pending',
   waiting: 'pending',
@@ -98,6 +98,11 @@ export const LIMITS = {
   uploadMaxBytes: 1024 * 1024,
   photosMax: 9,
   captionMax: 12,
+  /** 份量 / 总时长最多 20 个字（按字符数；后端超过返回 400 VALIDATION，v2.3.3） */
+  servingsMax: 20,
+  totalTimeMax: 20,
+  /** JSON 请求体上限 64KB（后端 v2.3.3：超过返回 413 TOO_LARGE） */
+  jsonMaxBytes: 65_536,
 } as const
 
 /** 照片柜用量（GET /api/kitchen/storage）：档位直接用后端的 capacity.level */
@@ -113,13 +118,71 @@ export const STORAGE = {
 /** 存储提示文案（需求 v2.4.4 §12-24 + 设计 2026-11-10-存储与限额状态） */
 export const STORAGE_TEXT = {
   warn: '照片柜已经用了 80%，可以删掉一些旧照片啦',
+  /** 只是 95.0–95.9% 时的样子；实际显示用 storageDangerText（v2.4.6 起按实际百分数） */
   danger: '照片柜快满啦（已用 95%），赶紧删掉一些旧照片吧',
   hint: '在菜品编辑页可以删掉不要的照片',
+  /** 429 副文案 · 编辑页（产品审核 round-1 第三节 ②） */
   quotaHint: '已填写的内容都还在，不用重填；不加新照片的修改照常可以保存',
+  /** 429 副文案 · 上传页（新菜一定带照片，不说“不加新照片照常保存”） */
+  quotaHintUpload: '已填写的内容都还在，不用重填，明天直接点上传就行',
+  /** 507 弹框正文（只有一个「知道了」） */
+  fullBody: '这次填的内容都还在，删掉一些不要的照片后，再点保存就行。',
 } as const
+
+/** 写入页 JSON 请求体超过 64KB（413 TOO_LARGE，不是照片的那种）时的提示；表单和草稿都保留（文案待产品复审） */
+export const BODY_TOO_LARGE_TEXT = '内容太长了，删减一点再保存'
+
+const MB_BYTES_ = 1024 * 1024
+/** 剩余不够一张照片（< 512,000 字节）就算“满了”（需求 v2.4.6 §12-33 第 1 条） */
+export const storageIsFull = (usedBytes: number, limitBytes: number) => limitBytes - usedBytes < STORAGE.estPhotoBytes
+/** 95% 红条：显示实际已用百分数，向下取整，限定 95–99（按字节算，不用四舍五入过的 percent） */
+export function storageDangerText(usedBytes: number, limitBytes: number): string {
+  const n = Math.min(99, Math.max(95, Math.floor((usedBytes / limitBytes) * 100)))
+  return `照片柜快满啦（已用 ${n}%），赶紧删掉一些旧照片吧`
+}
+/**
+ * 设置页“已用 X MB / 950 MB”：1024 进制、1 位小数（验收清单 CAP-03 口径，码驼确认的单位）。
+ * 已用向下取整，避免还没满时显示成“950.0 MB / 950 MB”；上限是整数时不带小数。
+ */
+export function storageMbText(bytes: number, kind: 'used' | 'limit'): string {
+  const mb = bytes / MB_BYTES_
+  if (kind === 'limit' && Number.isInteger(Math.round(mb * 1e6) / 1e6)) return Math.round(mb).toLocaleString('en-US')
+  const v = kind === 'used' ? Math.floor(Math.round(mb * 10 * 1e6) / 1e6) / 10 : Math.round(mb * 10) / 10
+  return v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
+/**
+ * 选图时逐张校验的提示（产品审核 round-1 第三节 ② 定稿）。
+ * PhotoManager 选图校验、compress 解码失败、round-2-photos 网格标红都直接引用这两个函数，保证一字不差。
+ */
+/** HEIC：「文件名」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’） */
+export function heicPhotoText(fileName: string): string {
+  return `「${fileName}」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）`
+}
+/** MB 数保留 1 位小数、向上取整（需求 v2.4.6 §12-33 第 3 条：10,485,761 字节 → 10.1，不能显示 10.0）。先去掉浮点误差再进位 */
+export function ceilMb1(mb: number): string {
+  return (Math.ceil(Math.round(mb * 10 * 1e6) / 1e6) / 10).toFixed(1)
+}
+/** 原图超 10MB：「文件名」有 X MB，超过 10MB 了，换一张小一点的吧（mb 为 MB 数，1 位小数向上取整） */
+export function tooBigPhotoText(fileName: string, mb: number): string {
+  return `「${fileName}」有 ${ceilMb1(mb)} MB，超过 10MB 了，换一张小一点的吧`
+}
+const MB_BYTES = 1024 * 1024
+/** 旧调用方式（按字节）的兼容封装 */
+export const PHOTO_TEXT = {
+  heic: heicPhotoText,
+  tooBig: (fileName: string, bytes: number) => tooBigPhotoText(fileName, bytes / MB_BYTES),
+} as const
+
+/** 文件是不是 HEIC/HEIF（按 MIME 或扩展名） */
+export const isHeic = (f: { type: string; name: string }) => /heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name)
 
 /** 照片存储相关错误码 → 固定文案（不显示后端 message） */
 export const STORAGE_ERROR_TEXT: Record<string, string> = {
   STORAGE_QUOTA: '今天食堂的照片柜塞满啦，明天再来传吧～',
   STORAGE_FULL: '照片柜满啦，删掉一些旧照片才能继续上传～',
 }
+
+
+/** 确认草稿（直接确认 / 修改后确认）之后的顶部提示（设计 §5.7，产品审核 P2-4） */
+export const CONFIRMED_TEXT = '已确认，菜谱上线啦！'

@@ -30,7 +30,8 @@
 //         开跑前检查不通过（剩余写入额度不足 / FULL 打 8787）3。
 //
 // 安全护栏（仓库公开）：
-// - 厨驼密钥运行时从 worker/.dev.vars 读，只放内存，输出统一脱敏；
+// - 厨驼密钥运行时从 worker/.dev.vars（或 CHEF_KEY_FILE 指向的文件）
+//   读，只放内存，输出统一脱敏；
 //   cookie 值从不打印。
 // - 开跑前给已有菜（含留给厨驼的示例菜）拍快照，结束时逐项比对；
 //   所有写操作/厨驼操作都先过 ownership guard，只碰本次创建的菜。
@@ -50,6 +51,7 @@ import { createRunner, registerSecret, redact, Skip }
 import * as V from './lib/validators.mjs';
 import * as B from './lib/budget.mjs';
 import { runOfflineTests } from './validators.test.mjs';
+import { readChefKey } from './lib/chefkey.mjs';
 
 // ---------- 命令行参数（未知参数直接报错，绝不悄悄跑在线用例） ----------
 const ARGS = process.argv.slice(2);
@@ -94,18 +96,6 @@ const badSub = (label) => {
 };
 
 // ---------- 密钥（不打印） ----------
-function readChefKey() {
-  const f = new URL('../.dev.vars', import.meta.url);
-  if (!existsSync(f)) return null;
-  for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*(?:export\s+)?CHEF_KEY\s*=\s*(.*?)\s*$/);
-    if (!m) continue;
-    let v = m[1];
-    if (/^(['"]).*\1$/.test(v)) v = v.slice(1, -1);
-    return v || null;
-  }
-  return null;
-}
 const KEY = readChefKey();
 registerSecret(KEY);
 const WRONG_KEY = `wrong-${crypto.randomUUID()}`;
@@ -893,7 +883,7 @@ async function photosSection() {
 // ---------- 访客：隐私 + 所有写接口 401 ----------
 async function anonSection() {
   let d;
-  await test('访客读详情：draft、requested_note 为 null，只给 chef_status',
+  await test('访客读详情：draft、requested_note、chef_requested_at 为 null，只给 chef_status',
     { api: 'GET /api/dishes/:id（访客）', ac: '1' }, async () => {
       d = await pendingDish({ any: true });
       expectOk(await kitchen('POST', d.id, '/ask-chef', { json: {
@@ -903,12 +893,17 @@ async function anonSection() {
       assert.equal(anon.chef_status, 'draft');
       assert.equal(anon.draft, null, '访客不应看到 draft');
       assert.equal(anon.requested_note, null, '访客不应看到 requested_note');
+      assert.equal(anon.chef_requested_at, null,
+        '访客不应看到 chef_requested_at（v2.3.3）');
       const me = await getDish(d.id);
       assert.ok(V.isObj(me.draft), '登录后应看到 draft');
       assert.equal(me.requested_note, '这次加了土豆');
+      assert.ok(V.isIsoUtc(me.chef_requested_at), '登录后应看到 chef_requested_at');
       const s = (await listDishes()).find((x) => x.id === d.id);
       assert.ok(!('draft' in s) && !('requested_note' in s),
         '列表不应带 draft/requested_note');
+      assert.ok(s.chef_requested_at == null,
+        '访客列表不应带 chef_requested_at 的值');
     });
   await test('访客调所有 kitchen 写接口 → 401，数据不变',
     { api: '/api/kitchen/*（访客）', ac: '1' }, async () => {

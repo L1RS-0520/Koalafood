@@ -93,7 +93,9 @@ legend {
   min-height: 100dvh;
 }
 .route {
-  animation: route-in var(--t-mid) ease-out both;
+  /* 只用 backwards：动画结束后不能留下 transform，否则 .route 会变成 position:fixed 的包含块，
+     底栏 / 浮动按钮就不再贴着屏幕底（round-2 发现的 round-1 遗留问题） */
+  animation: route-in var(--t-mid) ease-out backwards;
 }
 @keyframes route-in {
   from {

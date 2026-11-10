@@ -23,10 +23,13 @@ function KitchenClosed() {
     <main className="page page--narrow">
       <TopBar title="后厨" />
       <section className="kitchen-closed">
-        <div className="kitchen-door" aria-hidden="true">
-          <span className="kitchen-sign">STAFF ONLY</span>
-          <Koala pose="point" size={110} />
-          <ChefLlama pose="done" size={84} animated={false} />
+        <div className="kitchen-door">
+          {/* 牌子上的字是信息，不加 aria-hidden（设计 §5.15） */}
+          <span className="kitchen-sign">后厨重地</span>
+          <span className="kitchen-door-art" aria-hidden="true">
+            <Koala pose="point" size={110} />
+            <ChefLlama pose="done" size={84} animated={false} />
+          </span>
         </div>
         <div className="bubble bubble--up">
           <h2>这里是后厨，大王专用</h2>

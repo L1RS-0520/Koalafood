@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, ScrollRestoration, useLocation } from 'react-router-dom'
 import { Toasts, NotFound } from './components/ui'
 import { AppProvider } from './lib/app'
+import { useRevealFocusedField } from './lib/hooks'
 import { DishPage } from './pages/DishPage'
 import { EditPage } from './pages/EditPage'
 import { HomePage } from './pages/HomePage'
@@ -10,6 +11,7 @@ import { UploadPage } from './pages/UploadPage'
 
 function Shell() {
   const loc = useLocation()
+  useRevealFocusedField()
   return (
     <>
       {/* key 变化触发页面进场动画 */}

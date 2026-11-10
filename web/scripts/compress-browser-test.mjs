@@ -10,11 +10,13 @@ import { chromium } from 'playwright'
 const here = dirname(fileURLToPath(import.meta.url))
 const fx = (n) => readFileSync(join(here, 'fixtures', n)).toString('base64')
 
-const server = await createServer({ root: join(here, '..'), mode: 'mock', server: { port: 5199, host: '127.0.0.1' }, logLevel: 'silent' })
+// 端口可用 COMPRESS_TEST_PORT 指定（默认 5199 不变）；strictPort：被占用时直接报错，不悄悄换端口连到别人的服务
+const PORT = Number(process.env.COMPRESS_TEST_PORT) || 5199
+const server = await createServer({ root: join(here, '..'), mode: 'mock', server: { port: PORT, host: '127.0.0.1', strictPort: true }, logLevel: 'silent' })
 await server.listen()
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome' })
 const page = await browser.newPage()
-await page.goto('http://127.0.0.1:5199/')
+await page.goto(`http://127.0.0.1:${PORT}/`)
 
 const results = await page.evaluate(
   async ({ gps, rot6, alpha }) => {
@@ -90,8 +92,15 @@ const results = await page.evaluate(
       await m.compressImage(new File([new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, 104, 101, 105, 99])], 'IMG_0001.HEIC', { type: 'image/heic' }))
       rec('HEIC 给友好提示', false, '竟然没报错')
     } catch (e) {
-      rec('HEIC 给友好提示', e.code === 'DECODE' && /HEIC/.test(e.message) && /兼容性最佳/.test(e.message), e.message)
+      // 与选图校验共用同一句定稿（contract.ts PHOTO_TEXT.heic）
+      const want = (await import('/src/api/contract.ts')).PHOTO_TEXT.heic('IMG_0001.HEIC')
+      rec('HEIC 给友好提示（与选图校验同一句定稿）', e.code === 'DECODE' && e.message === want, e.message)
     }
+
+    // 6b. 单张进度（round-2 上传页进度环）：从 15 起、单调递增、最后到 100
+    const pcts = []
+    await m.compressImage(fromB64(gps, 'p.jpg', 'image/jpeg'), (p) => pcts.push(p))
+    rec('单张压缩进度：15 起、单调递增、完成 100', pcts[0] === 15 && pcts.at(-1) === 100 && pcts.every((v, i) => i === 0 || v >= pcts[i - 1]), pcts.join(','))
 
     // 7. 批量进度回调
     const prog = []

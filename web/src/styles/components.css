@@ -44,14 +44,14 @@
   --btn-bg: var(--secondary);
 }
 .btn--green {
-  --btn-bg: #7ee0a8;
+  --btn-bg: var(--secondary); /* 色板桉叶绿 #7CC6A4（走查 P2-8） */
 }
 .btn--accent {
   --btn-bg: var(--accent);
 }
 .btn--danger {
-  --btn-bg: var(--danger);
-  color: var(--ink);
+  --btn-bg: var(--danger-btn-bg);
+  color: var(--danger-btn-fg);
 }
 .btn--ghost {
   --btn-bg: var(--surface);
@@ -128,8 +128,8 @@
   opacity: 0.35;
 }
 .icon-btn--sm {
-  width: 40px;
-  height: 40px;
+  width: 44px; /* 设计走查 P1-2：原 40×40 */
+  height: 44px;
   border-width: 2px;
 }
 
@@ -173,7 +173,9 @@
 }
 .topbar-right {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   min-width: var(--touch);
 }
 .topbar-spacer {
@@ -288,6 +290,13 @@
     gap: 24px;
   }
 }
+/* 1280 宽：每行 5 张（卡宽约 190，设计 首页分类页 ④、走查 P2-15） */
+@media (min-width: 1200px) {
+  .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 18px;
+  }
+}
 .card {
   position: relative;
   display: block;
@@ -346,23 +355,6 @@
   height: 100%;
   color: #fff;
 }
-.card-count {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 7px 1px 5px;
-  border: var(--line-sm);
-  border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.94);
-  font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 13px;
-  line-height: 20px;
-}
 .card-stamp {
   position: absolute;
   left: 8px;
@@ -404,21 +396,22 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  background: #fdf3e1;
+  /* 88% 奶油色叠在封面上，能透出照片（设计 §5.1、走查 P2-1） */
+  background: rgba(255, 246, 229, 0.88);
   font-size: 12px;
 }
 .card-chef-avatar {
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
+  width: 64px;
+  height: 64px;
   border: var(--line-md);
   border-radius: 50%;
   background: #fff;
   overflow: hidden;
 }
 .card-chef-avatar .llama {
-  width: 54px !important;
+  width: 60px !important;
   margin-top: 10px;
   animation: llama-bob 1.6s ease-in-out infinite;
   transform-origin: 50% 90%;
@@ -433,26 +426,13 @@
   margin: 0;
   color: var(--text-2);
 }
-.card-chef--off {
-  background: #eeeef2;
-}
-.card-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--text-2);
-  white-space: nowrap;
-}
 @media (prefers-reduced-motion: reduce) {
   .card-chef-avatar .llama {
     animation: none;
   }
 }
 .card-body {
-  padding: 10px 10px 12px;
+  padding: 10px 12px 12px;
 }
 .card-name {
   font-size: var(--fs-h3-sm);
@@ -460,20 +440,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.card-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin-top: 8px;
-}
-.card-date {
-  font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--text-2);
-  white-space: nowrap;
 }
 @media (min-width: 640px) {
   .card-body {
@@ -943,21 +909,28 @@
   margin: 16px 0 6px;
 }
 .gallery-frame {
+  /* 照片直接放在 3px 墨线框里：16 圆角、4px 硬投影、右下渐隐网点，不加胶带（设计 §5.4，走查 P2-3） */
   position: relative;
-  border: var(--line);
-  border-radius: 18px;
-  background: #fff;
-  padding: 8px;
-  box-shadow: var(--shadow-lg);
-  transform: rotate(-0.8deg);
+}
+.gallery-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  background: radial-gradient(rgba(30, 26, 24, 0.16) 1.2px, transparent 1.4px) 0 0 / 8px 8px;
+  -webkit-mask: linear-gradient(135deg, transparent 62%, #000 100%);
+  mask: linear-gradient(135deg, transparent 62%, #000 100%);
 }
 .gallery-track {
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  border: var(--line-md);
-  border-radius: 12px;
+  border: var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow);
   overscroll-behavior-x: contain;
 }
 .gallery-track::-webkit-scrollbar {
@@ -1006,55 +979,68 @@
   }
 }
 .gallery-count {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  padding: 1px 10px;
-  border: var(--line-sm);
-  border-radius: var(--r-pill);
-  background: var(--accent);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 22px;
-  pointer-events: none;
-}
-.gallery-zoom-hint {
-  position: absolute;
-  left: 18px;
-  bottom: 18px;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border: var(--line-sm);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  pointer-events: none;
-}
-.tape {
+  /* 右上页码：白底 2.5px 墨线，ZCOOL 14「第 2/5 张」 */
   position: absolute;
   z-index: 2;
-  width: 66px;
-  height: 22px;
-  background: rgba(255, 210, 63, 0.78);
-  border: 1.5px solid rgba(30, 26, 24, 0.3);
+  right: 10px;
+  top: 10px;
+  padding: 0 10px;
+  border: var(--line-md);
+  border-radius: var(--r-pill);
+  background: #fff;
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 24px;
   pointer-events: none;
 }
-.tape--l {
-  left: -14px;
-  top: 12px;
-  transform: rotate(-32deg);
+.gallery-zoom {
+  /* 右下放大钮 34×34、10 圆角；点击区补到 44 */
+  position: absolute;
+  z-index: 2;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: var(--line-sm);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
 }
-.tape--r {
-  right: -14px;
-  top: 12px;
-  transform: rotate(32deg);
+.gallery-zoom::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
 }
-.tape--c {
+.gallery-swipe-hint {
+  position: absolute;
+  z-index: 2;
   left: 50%;
-  top: -12px;
-  transform: translateX(-50%) rotate(-3deg);
-  background: rgba(124, 198, 164, 0.75);
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border: var(--line-md);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.94);
+  font-family: var(--font-display);
+  font-size: 16px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: swipe-hint 1.5s ease-in-out both;
+}
+@keyframes swipe-hint {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 .gallery-dots {
   display: flex;
@@ -1063,9 +1049,9 @@
   margin-top: 14px;
 }
 .gallery-dots i {
-  width: 10px;
-  height: 10px;
-  border: var(--line-sm);
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ink);
   border-radius: 50%;
   background: #fff;
   transition:
@@ -1073,8 +1059,8 @@
     background-color var(--t-fast);
 }
 .gallery-dots i.on {
-  width: 24px;
-  border-radius: 6px;
+  width: 22px;
+  border-radius: 4px;
   background: var(--primary);
 }
 .gallery-thumbs {
@@ -1131,7 +1117,7 @@
   position: fixed;
   inset: 0;
   z-index: var(--z-modal);
-  background: rgba(20, 17, 16, 0.94);
+  background: #14100e; /* 实色黑底（走查 P2-5） */
   animation: fade-in var(--t-fast) both;
 }
 .lightbox-track {
@@ -1148,7 +1134,7 @@
   flex: 0 0 100%;
   display: grid;
   place-items: center;
-  padding: 64px 12px;
+  padding: 64px 12px 72px; /* 底部让出缩略图条 */
   scroll-snap-align: center;
 }
 .lightbox-slide img {
@@ -1174,6 +1160,35 @@
   background: var(--accent);
   font-weight: 700;
   font-size: 14px;
+}
+.lightbox-thumbs {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  overflow-x: auto;
+}
+.lightbox-thumb {
+  flex: none;
+  width: 56px;
+  height: 44px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+  opacity: 0.6;
+}
+.lightbox-thumb.on {
+  border-color: #fff;
+  opacity: 1;
+}
+.lightbox-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .lightbox-arrow.gallery-arrow--l {
   left: 16px;
@@ -1292,7 +1307,7 @@
   height: 18px;
   margin-right: 6px;
   border-radius: 50%;
-  background: var(--danger);
+  background: var(--danger-tag-bg);
   color: #fff;
   font-size: 12px;
   vertical-align: 1px;
@@ -1356,18 +1371,33 @@
   background: #fff;
 }
 .seg button {
-  min-height: 38px;
+  /* B04：按钮本身 44 高（负 margin 吃掉外框 3px 内边距，外框总高不变）；选中胶囊用 ::after 画回 38 高，外观不变 */
+  position: relative;
+  isolation: isolate;
+  min-height: 44px;
+  margin: -3px 0;
   padding: 4px 12px;
   border-radius: var(--r-pill);
   font-size: 14px;
   font-weight: 700;
   color: var(--text-2);
-  transition: background-color var(--t-fast);
+  background: transparent;
+  transition: color var(--t-fast);
 }
 .seg button.on {
-  background: var(--accent);
+  background: transparent;
   color: var(--ink);
+  box-shadow: none;
+}
+.seg button.on::after {
+  content: '';
+  position: absolute;
+  inset: 3px 0;
+  border-radius: var(--r-pill);
+  background: var(--accent);
   box-shadow: inset 0 0 0 2px var(--ink);
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* 开关 */

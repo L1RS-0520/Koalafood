@@ -50,3 +50,64 @@ export function useTitle(t: string) {
     document.title = t ? `${t} · 考拉食堂` : '考拉食堂'
   }, [t])
 }
+
+/** 聚焦输入框时滚进可视区，避开底部粘性操作栏，并跟随 visualViewport（手机键盘） */
+export function useRevealFocusedField() {
+  useEffect(() => {
+    const field = (t: EventTarget | null) => {
+      if (!(t instanceof HTMLElement)) return null
+      if (t instanceof HTMLInputElement) {
+        const typ = t.type
+        if (typ === 'hidden' || typ === 'button' || typ === 'submit' || typ === 'checkbox' || typ === 'radio' || typ === 'file') return null
+      }
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return t
+      return null
+    }
+    const reveal = (el: HTMLElement) => {
+      const vv = window.visualViewport
+      const viewTop = vv ? vv.offsetTop : 0
+      const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight
+      let safeBottom = viewBottom
+      for (const bar of document.querySelectorAll<HTMLElement>('.submit-bar, .action-bar')) {
+        const st = getComputedStyle(bar)
+        if (st.position !== 'sticky' && st.position !== 'fixed') continue
+        const r = bar.getBoundingClientRect()
+        if (r.height > 0 && r.top < viewBottom && r.bottom > viewTop) safeBottom = Math.min(safeBottom, r.top)
+      }
+      const r = el.getBoundingClientRect()
+      const pad = 8
+      const visible = Math.min(r.height, 60)
+      let dy = 0
+      if (r.top < viewTop + pad) dy = r.top - viewTop - pad
+      else if (r.top + visible > safeBottom - pad) dy = r.top + visible - (safeBottom - pad)
+      if (Math.abs(dy) > 1) window.scrollBy({ top: dy, behavior: 'auto' })
+    }
+    const onFocus = (e: FocusEvent) => {
+      const el = field(e.target)
+      if (!el) return
+      // 先让浏览器自己滚，再按粘性栏和 visualViewport 微调
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' })
+      reveal(el)
+      requestAnimationFrame(() => reveal(el))
+    }
+    // 只在聚焦和可视高度变小（键盘弹出）时调整。
+    // 不听 visualViewport scroll：iOS 键盘打开后用户自己滑页面也会触发，会被强行拉回输入框。
+    const onViewportResize = () => {
+      const vvNow = window.visualViewport
+      const h = vvNow ? vvNow.height : window.innerHeight
+      const shrink = h < lastHeight - 1
+      lastHeight = h
+      if (!shrink) return
+      const el = field(document.activeElement)
+      if (el) reveal(el)
+    }
+    document.addEventListener('focusin', onFocus)
+    const vv = window.visualViewport
+    let lastHeight = vv ? vv.height : window.innerHeight
+    vv?.addEventListener('resize', onViewportResize)
+    return () => {
+      document.removeEventListener('focusin', onFocus)
+      vv?.removeEventListener('resize', onViewportResize)
+    }
+  }, [])
+}

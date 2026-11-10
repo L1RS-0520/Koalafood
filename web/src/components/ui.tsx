@@ -23,7 +23,7 @@ export function TopBar({ title, back = '/', right }: { title: ReactNode; back?: 
       ) : (
         <span className="topbar-spacer" />
       )}
-      <h1 className="topbar-title">{title}</h1>
+      {title ? <h1 className="topbar-title">{title}</h1> : <span className="topbar-title" />}
       <div className="topbar-right">{right ?? <span className="topbar-spacer" />}</div>
     </header>
   )

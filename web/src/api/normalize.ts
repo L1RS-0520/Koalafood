@@ -92,7 +92,8 @@ export function normDish(raw: unknown): Dish {
     draft,
     chef_message: strOrNull(o.chef_message) ?? draft?.chef_message ?? null,
     requested_note: strOrNull(o.requested_note),
-    chef_requested_at: strOrNull(o.chef_requested_at) ?? strOrNull(o.requested_at),
+    // 未登录时后端不返回（v2.3.3）：缺了就不放这个键
+    ...(o.chef_requested_at !== undefined ? { chef_requested_at: strOrNull(o.chef_requested_at) } : {}),
     created_at: str(o.created_at),
     updated_at: str(o.updated_at),
   }
@@ -105,7 +106,7 @@ export function normSummary(raw: unknown): DishSummary {
     name: str(o.name),
     category: str(o.category) || '其他',
     photo_url: str(o.photo_url),
-    photo_count: typeof o.photo_count === 'number' ? o.photo_count : 1,
+    photo_count: typeof o.photo_count === 'number' ? o.photo_count : 0,
     total_time: strOrNull(o.total_time),
     chef_status: normStatus(o),
     source: normSource(o.source),
@@ -132,16 +133,16 @@ export function splitIngredientLine(line: string): Ingredient {
   return { name: s, amount: '' }
 }
 
-/** 用量：按 {capacity, daily_ops} 读；也兼容早先的平铺字段；关键字段缺失时返回 null（隐藏用量条） */
+/** 用量：按 {capacity, daily_ops} 读（旧平铺字段后端已删，不再兼容，后端审查 P2-2）；关键字段缺失时返回 null（隐藏用量条） */
 export function normStorage(raw: unknown): Storage | null {
   const o = (raw ?? {}) as Record<string, unknown>
   const num = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : null)
   const cap = (o.capacity ?? {}) as Record<string, unknown>
   const ops = (o.daily_ops ?? {}) as Record<string, unknown>
-  const used = num(cap.used_bytes) ?? num(o.used_bytes)
+  const used = num(cap.used_bytes)
   if (used === null) return null
-  const limit = num(cap.limit_bytes) ?? num(o.limit_bytes) ?? STORAGE.defaultLimit
-  const percent = num(cap.percent) ?? num(o.used_pct) ?? (limit ? Math.round((used / limit) * 1000) / 10 : 0)
+  const limit = num(cap.limit_bytes) ?? STORAGE.defaultLimit
+  const percent = num(cap.percent) ?? (limit ? Math.round((used / limit) * 1000) / 10 : 0)
   const lv = cap.level
   const level: StorageLevel = lv === 'warn' || lv === 'danger' ? lv : 'ok'
   return {
@@ -154,6 +155,6 @@ export function normStorage(raw: unknown): Storage | null {
       level,
       photos_left: num(cap.photos_left) ?? Math.max(0, Math.floor((limit - used) / STORAGE.estPhotoBytes)),
     },
-    daily_ops: { used: num(ops.used) ?? num(o.ops_today) ?? 0, limit: num(ops.limit) ?? num(o.ops_limit) ?? 0 },
+    daily_ops: { used: num(ops.used) ?? 0, limit: num(ops.limit) ?? 0 },
   }
 }

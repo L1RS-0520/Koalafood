@@ -25,6 +25,7 @@ npm run build             # tsc + vite build → dist/
 npm run build:mock        # mock 版 → dist-mock/，npm run preview:mock 预览（4174）
 npm run test:unit         # 压缩算法单元自测（node --test）
 npm run test:compress     # 浏览器里真压缩：GPS JPEG 去 EXIF、方向、透明 PNG 铺白、≤1MB、WebP、HEIC 提示
+npm run test:upload       # 上传页组件自测（mock，端口 5182）：HEIC/超 10MB/压完仍 >1MB/413 进网格标红、进度、保存拦截
 npm run shots             # 用 mock 截 round-1 全部截图到 ../../截图/round-1/
 ```
 
@@ -40,7 +41,7 @@ npm run shots             # 用 mock 截 round-1 全部截图到 ../../截图/ro
 | `koala-canteen:mock:ops-today` | 覆盖今天已传次数（≥1000 时上传返回 429） |
 | `koala-canteen:mock:chef-off` = `1` | 初始化时把「找厨驼写菜谱」关掉 |
 
-菜名含「失败」→ 厨驼交带 chef_message 的空草稿；含「塞满」→ 429；含「超大」→ 413。设置页底部有「重置示例数据」。
+菜名含「失败」→ 厨驼交带 chef_message 的空草稿；含「塞满」→ 429；含「超大」→ 413。选图时文件名含「压不下」→ 模拟“压缩后仍 1.3MB”，这张在网格里标红（只在 mock 模式生效）。设置页底部有「重置示例数据」。
 
 ## 目录
 

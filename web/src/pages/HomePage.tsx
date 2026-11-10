@@ -6,7 +6,8 @@ import { CategoryTabs } from '../components/CategoryTabs'
 import { DishCard, DishCardSkeleton } from '../components/DishCard'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
-import { Confirm, StatePanel } from '../components/ui'
+import { AccountActions } from '../components/AccountActions'
+import { StatePanel } from '../components/ui'
 import logo from '../assets/logo.webp'
 import { useApp } from '../lib/app'
 import { usePolling, useTitle } from '../lib/hooks'
@@ -21,6 +22,9 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const prevStatus = useRef<Map<string, string>>(new Map())
 
+  // 与详情页 B05 相同：load 只依赖稳定的 category / canEdit / toast，不依赖整个 app。
+  // 避免提示条等变化把 list 清空、把 10s 轮询计时重置。
+  const { canEdit, toast } = app
   const load = useCallback(
     async (silent = false) => {
       if (!silent) {
@@ -30,11 +34,11 @@ export function HomePage() {
       try {
         const list = await api.listDishes(category)
         // 轮询发现交稿：提示一下
-        if (silent && app.canEdit) {
+        if (silent && canEdit) {
           const done = list.filter(
             (d) => prevStatus.current.get(d.id) === CHEF_STATUS.pending && d.chef_status === CHEF_STATUS.draft,
           )
-          if (done.length) app.toast(`厨驼交稿啦：${done.map((d) => d.name).join('、')}`, 'ok')
+          if (done.length) toast(`厨驼交稿啦：${done.map((d) => d.name).join('、')}`, 'ok')
         }
         prevStatus.current = new Map(list.map((d) => [d.id, d.chef_status]))
         setDishes(list)
@@ -42,14 +46,13 @@ export function HomePage() {
         if (!silent) setError(e instanceof Error ? e.message : '菜单没加载出来')
       }
     },
-    [category, app],
+    [category, canEdit, toast],
   )
 
   useEffect(() => {
     load()
   }, [load])
 
-  const [bye, setBye] = useState(false)
   const drafts = dishes?.filter((d) => d.chef_status === CHEF_STATUS.draft).length ?? 0
   const greeting = app.canEdit
     ? drafts
@@ -80,26 +83,15 @@ export function HomePage() {
               上传新菜
             </Link>
           )}
-          {app.canEdit ? (
-            <>
-              <Link to="/kitchen/settings" className="icon-btn" aria-label="设置">
-                <Icon name="gear" />
-              </Link>
-              <button type="button" className="king-pill" onClick={() => setBye(true)} aria-label="大王已登录，点开可退出登录">
-                <Icon name="crown" size={14} />
-                大王
-              </button>
-            </>
-          ) : (
-            app.ready && (
-              <button type="button" className="login-pill" onClick={() => app.login()}>
-                <Icon name="crown" size={14} />
-                大王登录
-              </button>
-            )
-          )}
+          <AccountActions />
         </div>
       </header>
+
+      {/* 手机：问候在顶栏下、分类胶囊上面（设计 首页分类页 ②、走查 P2-15）；桌面隐藏 */}
+      <div className="greet">
+        <Koala pose={app.canEdit ? 'spoon' : 'wave'} size={64} />
+        <p className="bubble bubble--left">{greeting}</p>
+      </div>
 
       <div className="home-body">
         <aside className="home-side">
@@ -112,10 +104,6 @@ export function HomePage() {
         </aside>
 
         <div className="home-main">
-      <div className="greet">
-        <Koala pose={app.canEdit ? 'spoon' : 'wave'} size={64} />
-        <p className="bubble bubble--left">{greeting}</p>
-      </div>
 
       <h1 className="home-title">
         {category}
@@ -142,30 +130,39 @@ export function HomePage() {
         </div>
       ) : dishes.length === 0 ? (
         category === ALL ? (
-          <StatePanel
-            pose="point"
-            title="食堂还没开张，快上传第一道菜"
-            text={app.canEdit ? '拍张照、写个菜名就行，菜谱可以交给厨驼。' : '大王还没上新菜，过会儿再来看看吧。'}
-            action={
-              app.canEdit && (
+          // 整站没有菜（需求 v2.4.6 §12-33 第 5 条）：访客只读、没有按钮；大王配「＋ 上传新菜」
+          app.canEdit ? (
+            <StatePanel
+              pose="point"
+              title="食堂还空着，上传第一道菜吧。"
+              action={
                 <Link className="btn btn--primary btn--lg" to="/kitchen/upload">
                   <Icon name="plus" size={20} />
-                  上传第一道菜
+                  上传新菜
                 </Link>
-              )
-            }
-          />
+              }
+            />
+          ) : (
+            <StatePanel pose="point" title="食堂还没开张呢，过几天再来看看～" />
+          )
         ) : (
-          <StatePanel
-            pose="taste"
-            title={`「${category}」还没有菜`}
-            text="换个分类看看，或者给这里添一道。"
-            action={
-              <button type="button" className="btn btn--ghost" onClick={() => pick(ALL)}>
-                看全部菜品
-              </button>
-            }
-          />
+          // 分类空（设计 空状态.png ①②、§5.10，走查 P1-5）：访客没有上传权限，不提“添一道”、不放按钮；
+          // 大王给「＋ 上传新菜」，进上传页时预选当前分类
+          app.canEdit ? (
+            <StatePanel
+              pose="taste"
+              title={`${category}还没有菜`}
+              text="换个分类看看，或者给这里添一道。"
+              action={
+                <Link className="btn btn--primary" to={`/kitchen/upload?category=${encodeURIComponent(category)}`}>
+                  <Icon name="plus" size={18} />
+                  上传新菜
+                </Link>
+              }
+            />
+          ) : (
+            <StatePanel pose="taste" title="这个分类还空着～" text={`考拉大王还没做过${category}，先去别的分类看看吧！`} />
+          )
         )
       ) : (
         <div className="grid">
@@ -183,19 +180,6 @@ export function HomePage() {
         {app.isMock && <span className="mock-chip">本地模拟数据</span>}
       </footer>
 
-      <Confirm
-        open={bye}
-        title="退出大王登录？"
-        body="退出后就和访客看到的一样，草稿和后厨入口都会藏起来。"
-        okText="退出登录"
-        cancelText="留下"
-        art={<Koala pose="wave" size={76} />}
-        onOk={() => {
-          setBye(false)
-          app.logout()
-        }}
-        onCancel={() => setBye(false)}
-      />
 
       {app.canEdit && (
         <Link to="/kitchen/upload" className="fab" aria-label="上传新菜">
