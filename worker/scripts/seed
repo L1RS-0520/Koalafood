@@ -64,11 +64,21 @@ def placeholder(name, color, idx):
         f = f2 = ImageFont.load_default()
     d.text((400, 290), name, font=f, fill="black", anchor="mm")
     d.text((400, 470), f"考拉食堂 · 示例图 {idx}", font=f2, fill="white", anchor="mm")
-    buf = io.BytesIO(); img.save(buf, "JPEG", quality=85)
+    buf = io.BytesIO(); img.save(buf, "JPEG", quality=85)  # 800x600 约 70KB，远小于 1MB
     return buf.getvalue()
 
 
+MAX_PHOTO_BYTES = 1024 * 1024  # 与后端单张上限一致
+
+
 def photo_bytes(name, spec, idx):
+    data = _photo_bytes(name, spec, idx)
+    if len(data) > MAX_PHOTO_BYTES:
+        sys.exit(f"{name} 第 {idx} 张照片 {len(data)} 字节，超过单张 1MB 上限，请先压缩")
+    return data
+
+
+def _photo_bytes(name, spec, idx):
     if isinstance(spec, str):
         p = ASSETS / spec
         if p.exists():

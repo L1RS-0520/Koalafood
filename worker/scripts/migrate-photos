@@ -1,0 +1,66 @@
+#!/usr/bin/env node
+// 本地照片迁移：把 dish_photos 里登记的每张照片从一种存储拷到另一种（r2 | kv | d1）。
+// 直接读写本地模拟数据（.wrangler/state 或 --persist-to 指定目录），不联网、不碰任何线上资源。
+//
+//   node scripts/migrate-photos --from r2 --to kv               # 默认就是 r2 → kv
+//   node scripts/migrate-photos --from r2 --to kv --persist-to .wrangler/state
+//   node scripts/migrate-photos --dry-run                       # 只统计不写
+//
+// 规则：目标里已有同一个键就跳过（可重复运行）；拷完逐张比对 SHA-256；源数据不删除。
+// 建议先停掉使用同一份数据的 wrangler dev，并先备份 .wrangler/state。
+import { getPlatformProxy } from "wrangler";
+import { createHash } from "node:crypto";
+import { join } from "node:path";
+
+const args = process.argv.slice(2);
+const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
+const from = opt("--from", "r2"), to = opt("--to", "kv");
+// 与 wrangler dev --persist-to 同义：wrangler 实际把数据放在 <目录>/v3 下
+const persist = opt("--persist-to", ".wrangler/state");
+const dry = args.includes("--dry-run");
+const KINDS = ["r2", "kv", "d1"];
+if (!KINDS.includes(from) || !KINDS.includes(to) || from === to) {
+  console.error("用法：--from r2|kv|d1 --to r2|kv|d1（两者不同）"); process.exit(1);
+}
+
+const { env, dispose } = await getPlatformProxy({ persist: { path: join(persist, "v3") } });
+const sha = (buf) => createHash("sha256").update(new Uint8Array(buf)).digest("hex");
+
+const store = (kind) => ({
+  r2: {
+    get: async (k) => { const o = await env.PHOTOS.get(k); return o ? { bytes: await o.arrayBuffer(), type: o.httpMetadata?.contentType } : null; },
+    has: async (k) => !!(await env.PHOTOS.head(k)),
+    put: (k, b, t) => env.PHOTOS.put(k, b, { httpMetadata: { contentType: t } }),
+  },
+  kv: {
+    get: async (k) => { const r = await env.PHOTOS_KV.getWithMetadata(`photo:${k}`, "arrayBuffer"); return r.value ? { bytes: r.value, type: r.metadata?.contentType } : null; },
+    has: async (k) => (await env.PHOTOS_KV.get(`photo:${k}`, "arrayBuffer")) !== null,
+    put: (k, b, t) => env.PHOTOS_KV.put(`photo:${k}`, b, { metadata: { contentType: t, size: b.byteLength } }),
+  },
+  d1: {
+    get: async (k) => { const r = await env.DB.prepare("SELECT content_type, data FROM photo_blobs WHERE key=?").bind(k).first(); return r ? { bytes: new Uint8Array(r.data).buffer, type: r.content_type } : null; },
+    has: async (k) => !!(await env.DB.prepare("SELECT 1 FROM photo_blobs WHERE key=?").bind(k).first()),
+    put: (k, b, t) => env.DB.prepare("INSERT INTO photo_blobs(key,content_type,size,data,created_at) VALUES (?,?,?,?,?)").bind(k, t, b.byteLength, b, new Date().toISOString()).run(),
+  },
+})[kind];
+
+let copied = 0, skipped = 0, missing = 0, bad = 0;
+try {
+  const rows = (await env.DB.prepare("SELECT r2_key AS key, content_type FROM dish_photos ORDER BY dish_id, position").all()).results;
+  console.log(`共 ${rows.length} 张照片登记在 dish_photos，${from} → ${to}${dry ? "（dry-run）" : ""}，数据目录：${persist}`);
+  const src = store(from), dst = store(to);
+  for (const r of rows) {
+    if (await dst.has(r.key)) { skipped++; continue; }
+    const o = await src.get(r.key);
+    if (!o) { missing++; console.warn(`  源里找不到：${r.key}`); continue; }
+    if (dry) { copied++; continue; }
+    await dst.put(r.key, o.bytes, o.type ?? r.content_type);
+    const back = await dst.get(r.key);
+    if (!back || sha(back.bytes) !== sha(o.bytes)) { bad++; console.error(`  校验失败：${r.key}`); continue; }
+    copied++;
+  }
+  console.log(`完成：拷贝 ${copied}，已存在跳过 ${skipped}，源缺失 ${missing}，校验失败 ${bad}。源数据未删除。`);
+} finally {
+  await dispose();
+}
+process.exit(missing || bad ? 2 : 0);

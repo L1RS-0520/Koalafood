@@ -6,8 +6,12 @@
     "predev": "mkdir -p ../web/dist && [ -f ../web/dist/index.html ] || printf \"<!doctype html><meta charset=utf-8><title>考拉食堂</title><p>前端尚未构建（web/dist 占位页，由后端 dev 脚本生成）</p>\" > ../web/dist/index.html",
     "dev": "npm run predev --silent && npm run db:migrate && wrangler dev --local --port 8787 --ip 0.0.0.0",
     "db:migrate": "wrangler d1 migrations apply DB --local",
-    "typecheck": "tsc -p .",
-    "selftest": "bash scripts/selftest.sh"
+    "db:reset": "rm -rf .wrangler/state && npm run db:migrate",
+    "init-dev-vars": "node scripts/init-dev-vars",
+    "seed": "python3 scripts/seed",
+    "migrate-photos": "node scripts/migrate-photos",
+    "selftest": "node scripts/selftest.mjs",
+    "typecheck": "tsc -p ."
   },
   "license": "ISC",
   "type": "module",

@@ -1,4 +1,4 @@
--- 考拉食堂 初始表结构（接口约定 v2.1 最终定稿 + v2.2 多图：厨驼写菜谱 + 手写保底，不用 Workers AI）
+-- 考拉食堂 初始表结构（接口约定 v2.1 最终定稿 + v2.2 多图：厨驼写菜谱 + 手写保底；已去掉 Workers AI）
 CREATE TABLE IF NOT EXISTS dishes (
   id                 TEXT PRIMARY KEY,                -- UUID
   name               TEXT NOT NULL,                   -- 菜名 ≤30 字

@@ -18,11 +18,18 @@ database_name = "koala-canteen"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
+# 照片存储三选一（PHOTO_STORE，默认 kv）。本地三种绑定都在（KV id 为占位，本地模拟用）；上线时只保留选定的那一种并换成真实 id（待大王审批）
 [[r2_buckets]]
 binding = "PHOTOS"
 bucket_name = "koala-canteen-photos"
 
+[[kv_namespaces]]
+binding = "PHOTOS_KV"
+id = "00000000000000000000000000000000"
+
 [vars]
+# 照片存储：kv（默认，码驼定案）| r2（备选）| d1，对比见 docs/照片存储方案.md
+PHOTO_STORE = "kv"
 # 厨驼领取后多久没交稿可被重新领取（分钟）
 CHEF_CLAIM_TTL_MIN = "30"
 # 密钥 CHEF_KEY 不写在这里：本地放 worker/.dev.vars（已 gitignore），线上用 wrangler secret（待大王审批）

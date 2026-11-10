@@ -1,7 +1,8 @@
 import type { Context } from "hono";
 
 export const CATEGORIES = ["家常菜", "汤羹", "主食", "小吃点心", "甜品饮品", "其他"] as const;
-export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+/** 单张照片服务端上限 1MB（1,048,576 字节）；前端上传前先压缩。D1 单行上限 2MB，所以三种存储都放得下 */
+export const MAX_PHOTO_BYTES = 1024 * 1024;
 export const NAME_MAX = 30;
 export const NOTE_MAX = 200;
 
@@ -80,7 +81,7 @@ export async function readPhoto(v: unknown): Promise<PhotoInfo> {
   const f = v as File;
   if (f.size === 0) throw new ApiError("VALIDATION", "照片是空文件，请重新选择");
   if (f.size > MAX_PHOTO_BYTES)
-    throw new ApiError("TOO_LARGE", `照片太大了（${(f.size / 1024 / 1024).toFixed(1)}MB），最大 10MB`);
+    throw new ApiError("TOO_LARGE", `照片太大了（${(f.size / 1024 / 1024).toFixed(2)}MB），单张最大 1MB，请压缩后再传`);
   const bytes = await f.arrayBuffer();
   const ext = sniffImage(new Uint8Array(bytes.slice(0, 16)));
   if (!ext) throw new ApiError("BAD_TYPE", "照片格式不支持，只能上传 jpg、png 或 webp 图片");

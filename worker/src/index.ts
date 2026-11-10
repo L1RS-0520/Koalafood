@@ -11,6 +11,7 @@ import {
 import { toDish, toTask, draftColumns, getDish, getPhotos, getChefEnabled, type DishRow, type PhotoRow } from "./db.ts";
 import { normalizeDraft, type RecipeDraft } from "./generator/draft.ts";
 import { mockDraft } from "./generator/mock-chef.ts";
+import { getPhotoStore } from "./storage/photo-store.ts";
 import { getViewer, accessConfigured, devAuthEnabled, DEV_COOKIE, type Viewer } from "./auth.ts";
 
 type Vars = { viewer: Viewer };
@@ -83,11 +84,11 @@ async function putPhotos(env: Env, dishId: string, photos: PhotoInfo[], startPos
   try {
     for (const [i, p] of photos.entries()) {
       const key = `${crypto.randomUUID()}.${p.ext}`;
-      await env.PHOTOS.put(key, p.bytes, { httpMetadata: { contentType: p.type } });
+      await getPhotoStore(env).put(key, p.bytes, p.type);
       rows.push({ id: crypto.randomUUID(), dish_id: dishId, r2_key: key, content_type: p.type, position: startPos + i, created_at: now });
     }
   } catch (e) {
-    await Promise.all(rows.map((r) => env.PHOTOS.delete(r.r2_key)));
+    await Promise.all(rows.map((r) => getPhotoStore(env).delete(r.r2_key)));
     throw e;
   }
   return rows;
@@ -102,11 +103,11 @@ app.get("/api/photos/:key", async (c) => {
   return servePhoto(c, key);
 });
 async function servePhoto(c: C, key: string) {
-  const obj = await c.env.PHOTOS.get(key);
+  const obj = await getPhotoStore(c.env).get(key);
   if (!obj) throw new ApiError("NOT_FOUND", "照片不存在");
   const h = new Headers();
-  obj.writeHttpMetadata(h);
-  h.set("ETag", obj.httpEtag);
+  h.set("Content-Type", obj.contentType);
+  h.set("ETag", obj.etag);
   h.set("Cache-Control", "public, max-age=31536000, immutable"); // 键是 uuid，不复用
   return new Response(obj.body, { headers: h });
 }
@@ -128,7 +129,7 @@ const chefMockMw = async (c: C, next: Next) => { await runChefMock(c.env); await
 // ---------- 公开读 ----------
 app.get("/api/health", chefMockMw, async (c) => {
   const p = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM dishes WHERE chef_status='pending'").first<{ n: number }>();
-  return c.json({ ok: true, chef_enabled: await getChefEnabled(c.env.DB), chef_pending: p?.n ?? 0, chef_mock: c.env.CHEF_MOCK === "1" });
+  return c.json({ ok: true, chef_enabled: await getChefEnabled(c.env.DB), chef_pending: p?.n ?? 0, chef_mock: c.env.CHEF_MOCK === "1", photo_store: getPhotoStore(c.env).kind });
 });
 app.get("/api/categories", (c) => c.json({ categories: CATEGORIES }));
 app.get("/api/settings", async (c) => c.json({ chef_enabled: await getChefEnabled(c.env.DB) }));
@@ -231,7 +232,7 @@ app.post("/api/kitchen/dishes", async (c) => {
       ...insertPhotoStmts(c.env.DB, rows),
     ]);
   } catch (e) {
-    await Promise.all(rows.map((r) => c.env.PHOTOS.delete(r.r2_key)));
+    await Promise.all(rows.map((r) => getPhotoStore(c.env).delete(r.r2_key)));
     throw e;
   }
   return c.json(await dishJson(c, id, true), 201);
@@ -268,7 +269,7 @@ app.delete("/api/kitchen/dishes/:id", async (c) => {
     c.env.DB.prepare("DELETE FROM dish_photos WHERE dish_id=?").bind(id),
     c.env.DB.prepare("DELETE FROM dishes WHERE id=?").bind(id),
   ]);
-  await Promise.all(photos.map((p) => c.env.PHOTOS.delete(p.r2_key)));
+  await Promise.all(photos.map((p) => getPhotoStore(c.env).delete(p.r2_key)));
   return c.json({ ok: true });
 });
 
@@ -284,7 +285,7 @@ app.post("/api/kitchen/dishes/:id/photos", async (c) => {
   try {
     await c.env.DB.batch([...insertPhotoStmts(c.env.DB, rows),
       c.env.DB.prepare("UPDATE dishes SET updated_at=? WHERE id=?").bind(nowIso(), id)]);
-  } catch (e) { await Promise.all(rows.map((r) => c.env.PHOTOS.delete(r.r2_key))); throw e; }
+  } catch (e) { await Promise.all(rows.map((r) => getPhotoStore(c.env).delete(r.r2_key))); throw e; }
   return c.json(await dishJson(c, id, true));
 });
 
@@ -318,7 +319,7 @@ app.delete("/api/kitchen/dishes/:id/photos/:photoId", async (c) => {
     ...rest.map((p, i) => c.env.DB.prepare("UPDATE dish_photos SET position=? WHERE id=?").bind(i, p.id)),
     c.env.DB.prepare("UPDATE dishes SET updated_at=? WHERE id=?").bind(nowIso(), id),
   ]);
-  await c.env.PHOTOS.delete(target.r2_key);
+  await getPhotoStore(c.env).delete(target.r2_key);
   return c.json(await dishJson(c, id, true));
 });
 
