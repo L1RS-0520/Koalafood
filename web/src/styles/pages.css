@@ -706,6 +706,15 @@
   grid-template-columns: 1fr 1fr 1.4fr;
   gap: 6px;
 }
+/* P1-1：360/390 三格只有约 45–80px，占位和已填对白会被截断。手机上改两行：火候+时长，漫画对白整行。 */
+@media (max-width: 639px) {
+  .row-sub {
+    grid-template-columns: 1fr 1fr;
+  }
+  .row-sub > :last-child {
+    grid-column: 1 / -1;
+  }
+}
 .input--sm {
   min-height: 44px; /* 设计走查 P1-2：输入框点击区 ≥44 */
   padding: 6px 8px;
