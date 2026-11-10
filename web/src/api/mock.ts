@@ -159,6 +159,11 @@ function validateMeta(c: { servings?: string | null; total_time?: string | null 
   const errs = metaErrors({ servings: c.servings ?? null, total_time: c.total_time ?? null })
   if (errs.length) throw new ApiError('VALIDATION', errs.join('；'), 400)
 }
+/** JSON 请求体超过 64KB → 413 TOO_LARGE（对齐后端 v2.3.3；只管 JSON 接口：PATCH、确认草稿） */
+function checkJsonSize(body: unknown) {
+  if (new TextEncoder().encode(JSON.stringify(body ?? {})).length > LIMITS.jsonMaxBytes)
+    throw new ApiError('TOO_LARGE', '请求内容超过 64KB', 413)
+}
 /** 只写了编号的食材/步骤/小贴士 → 400 VALIDATION + details {field, index, reason:'only_number'}（对齐后端 v2.3.3） */
 function validateItems(c: Partial<Pick<RecipeContent, 'ingredients' | 'steps' | 'tips'>>) {
   const it = onlyNumberIssue({ ingredients: c.ingredients ?? [], steps: c.steps ?? [], tips: c.tips ?? [] })
@@ -256,6 +261,7 @@ export const mockApi: Api = {
     const category = patch.category ?? d.category
     const note = patch.note === undefined ? d.note : patch.note
     validateText(name, category, note)
+    checkJsonSize(patch)
     validateMeta(patch)
     validateItems(patch)
     Object.assign(d, {
@@ -352,7 +358,7 @@ export const mockApi: Api = {
     if (d.chef_status !== CHEF_STATUS.draft || !d.draft)
       throw new ApiError('BAD_STATE', '这份草稿已经不在了（状态刚刚变了），已为你刷新', 409)
     const c = content ?? d.draft
-    if (content) (validateMeta(content), validateItems(content))
+    if (content) (checkJsonSize({ content }), validateMeta(content), validateItems(content))
     Object.assign(d, {
       ingredients: c.ingredients,
       steps: c.steps,

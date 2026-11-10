@@ -1,7 +1,7 @@
 // P4 编辑页（仅大王）：所有字段 + 照片增删排序 + 食材步骤编辑区；?confirm=1 为「修改后确认」草稿
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, ApiError, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, type Dish, type RecipeContent } from '../api'
+import { api, ApiError, BODY_TOO_LARGE_TEXT, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, type Dish, type RecipeContent } from '../api'
 import { BasicFields, validateBasics, type BasicErrors, type Basics } from '../components/BasicFields'
 import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
@@ -213,6 +213,11 @@ export function EditPage() {
       setSaved(true)
       setTimeout(() => nav(detail, { replace: true }), 0)
     } catch (err) {
+      // 后端 v2.3.3：JSON 请求体超过 64KB → 413 TOO_LARGE（保存不带照片，所以一定是内容太长）；表单原样保留
+      if (err instanceof ApiError && err.code === 'TOO_LARGE') {
+        app.toast(BODY_TOO_LARGE_TEXT, 'err')
+        return
+      }
       const fi = fieldIssueOf(err)
       const row = fi && content ? rawIndexOf(content, fi.field, fi.index) : -1
       if (fi && row >= 0) {

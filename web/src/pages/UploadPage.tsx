@@ -1,7 +1,7 @@
 // P2 上传页（仅大王）：多图 + 菜名/分类/备注 + 写法「找厨驼写」(默认) /「自己写」
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { api, ApiError, CATEGORIES, CREATE_MODE, LIMITS, type CreateMode, type RecipeContent } from '../api'
+import { api, ApiError, BODY_TOO_LARGE_TEXT, CATEGORIES, CREATE_MODE, LIMITS, type CreateMode, type RecipeContent } from '../api'
 import { BasicFields, validateBasics, type BasicErrors, type Basics } from '../components/BasicFields'
 import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
@@ -265,10 +265,15 @@ export function UploadPage() {
           // 标出是第几张：优先用后端 message 里的“第 N 张”，否则找本地超过 1MB 的
           const n = photoIndexOf(err.message)
           const idx = n ? [n - 1] : photos.map((p, i) => (p.file.size > LIMITS.uploadMaxBytes ? i : -1)).filter((i) => i >= 0)
+          if (!idx.length) {
+            // 不是哪张照片超了：按后端 v2.3.3 是文字内容超过 64KB。只提示，表单、照片和本机草稿都保留
+            app.toast(BODY_TOO_LARGE_TEXT, 'err')
+            return
+          }
           const marks: Record<string, string> = {}
           idx.forEach((i) => photos[i] && (marks[photos[i].key] = `${tooLargeText(photos[i].file.size)}，删掉换一张吧`))
           setServerBad(marks)
-          setPhotoErr(idx.length ? null : tooLargeText(null))
+          setPhotoErr(null)
         } else setPhotoErr(err.message)
         document.getElementById('f-photos')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }

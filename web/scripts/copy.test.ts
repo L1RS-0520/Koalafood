@@ -68,3 +68,9 @@ test('设置页“已用 X MB / 950 MB”：1 位小数，已用向下取整（�
   assert.equal(storageMbText(0, 'used'), '0.0')
   assert.equal(storageMbText(996_147_200, 'limit'), '950')
 })
+
+test('JSON 请求体超 64KB 的提示（后端 v2.3.3 413，待产品复审）', async () => {
+  const { BODY_TOO_LARGE_TEXT, LIMITS } = await import('../src/api/contract.ts')
+  assert.equal(BODY_TOO_LARGE_TEXT, '内容太长了，删减一点再保存')
+  assert.equal(LIMITS.jsonMaxBytes, 65_536)
+})

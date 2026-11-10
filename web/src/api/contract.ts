@@ -101,6 +101,8 @@ export const LIMITS = {
   /** 份量 / 总时长最多 20 个字（按字符数；后端超过返回 400 VALIDATION，v2.3.3） */
   servingsMax: 20,
   totalTimeMax: 20,
+  /** JSON 请求体上限 64KB（后端 v2.3.3：超过返回 413 TOO_LARGE） */
+  jsonMaxBytes: 65_536,
 } as const
 
 /** 照片柜用量（GET /api/kitchen/storage）：档位直接用后端的 capacity.level */
@@ -126,6 +128,9 @@ export const STORAGE_TEXT = {
   /** 507 弹框正文（只有一个「知道了」） */
   fullBody: '这次填的内容都还在，删掉一些不要的照片后，再点保存就行。',
 } as const
+
+/** 写入页 JSON 请求体超过 64KB（413 TOO_LARGE，不是照片的那种）时的提示；表单和草稿都保留（文案待产品复审） */
+export const BODY_TOO_LARGE_TEXT = '内容太长了，删减一点再保存'
 
 const MB_BYTES_ = 1024 * 1024
 /** 剩余不够一张照片（< 512,000 字节）就算“满了”（需求 v2.4.6 §12-33 第 1 条） */

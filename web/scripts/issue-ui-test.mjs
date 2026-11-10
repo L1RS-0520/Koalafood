@@ -1,5 +1,6 @@
 // 逐条校验错误的页面行为（后端 v2.3.3 details）：编辑页把第 1 步改成“2.”保存 →
 // 滚到第 1 步并聚焦、旁边一直显示说明（等 5 秒还在），改动那一步后说明消失；不发 toast。
+// 再加一条 3 万字的小贴士保存 → mock 413 → 提示「内容太长了，删减一点再保存」，表单不丢。
 // 用 mock 构建：BASE_URL=http://127.0.0.1:端口（vite preview --outDir dist-mock），默认 5232。
 import { chromium } from 'playwright'
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:5232'
@@ -36,6 +37,13 @@ for (const vp of [{ width: 390, height: 844 }, { width: 1280, height: 800 }]) {
   rec(await note.isVisible(), `${w} 改别的栏（食材）说明不消失`)
   await p.locator('[aria-label="第 1 步内容"]').fill('鸡蛋打散')
   rec((await note.count()) === 0, `${w} 改了第 1 步后说明消失`)
+  // 后端 v2.3.3：JSON 超 64KB → 413；提示「内容太长了，删减一点再保存」，留在本页、表单不丢
+  await p.getByRole('button', { name: '加一条小贴士' }).click()
+  const tip = p.locator('[aria-label^="第"][aria-label$="条小贴士"]').last()
+  await tip.fill('长'.repeat(30_000))
+  await p.getByRole('button', { name: /^保存/ }).click()
+  await p.locator('.toasts', { hasText: '内容太长了，删减一点再保存' }).waitFor({ timeout: 15_000 }).then(() => rec(true, `${w} 413 提示内容太长`), () => rec(false, `${w} 413 提示内容太长`))
+  rec(p.url().endsWith('/edit') && (await tip.inputValue()).length === 30_000 && (await p.locator('[aria-label="第 1 步内容"]').inputValue()) === '鸡蛋打散', `${w} 413 后留在编辑页、填的都还在`)
   await p.close()
 }
 await b.close()
