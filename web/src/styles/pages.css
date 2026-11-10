@@ -113,6 +113,13 @@
 @media (min-width: 960px) {
   .home-upload {
     display: inline-flex;
+    /* 验收 R1-09（电脑）：外观保持 36 高的小按钮，点击区用 ::before 上下各扩 4px 到 44 */
+    position: relative;
+  }
+  .home-upload::before {
+    content: '';
+    position: absolute;
+    inset: -7px -3px; /* 相对 padding 盒；3px 边框 + 4px = 上下各多 4px → 44 */
   }
   .page--home .fab {
     display: none;
