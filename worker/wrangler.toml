@@ -1,6 +1,7 @@
 # 考拉食堂 Worker 配置
-# 注意：database_id / bucket 仅用于本地模拟（wrangler dev 默认 --local，数据在 .wrangler/state）。
-# 上线前需大王审批后再创建真实 D1/R2 并替换 database_id，见 ../../待大王审批.md。
+# 本地：wrangler dev --local，D1/KV 都是本地模拟，数据在 .wrangler/state（database_id、KV id 都是占位）。
+# 上线前需大王审批后再创建真实 D1 和 KV namespace 并替换占位 id，见 ../../待大王审批.md。
+# 默认配置只用 D1 + KV，**不需要开通 R2**（R2 开通要绑付款方式、超额会计费）。R2 方案只在 [env.r2] 里，本地用 --env r2 启动。
 name = "koala-canteen"
 main = "src/index.ts"
 compatibility_date = "2026-11-01"
@@ -18,18 +19,18 @@ database_name = "koala-canteen"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
-# 照片存储三选一（PHOTO_STORE，默认 kv）。本地三种绑定都在（KV id 为占位，本地模拟用）；上线时只保留选定的那一种并换成真实 id（待大王审批）
-[[r2_buckets]]
-binding = "PHOTOS"
-bucket_name = "koala-canteen-photos"
-
+# 照片默认存 KV（码驼定案）
 [[kv_namespaces]]
 binding = "PHOTOS_KV"
 id = "00000000000000000000000000000000"
 
 [vars]
-# 照片存储：kv（默认，码驼定案）| r2（备选）| d1，对比见 docs/照片存储方案.md
+# 照片存储：kv（默认）| d1 | r2（只能配合 --env r2），对比见 docs/照片存储方案.md
 PHOTO_STORE = "kv"
+# 照片总容量安全上限（字节），默认 950MB = 996147200（KV 免费版 1 GB）；超过返回 507 STORAGE_FULL
+STORAGE_LIMIT_BYTES = "996147200"
+# KV 每个 UTC 日 put+delete 次数上限，默认 1000（KV 免费版写入、删除各 1,000 次/天）；超过返回 429 STORAGE_QUOTA
+KV_DAILY_WRITE_LIMIT = "1000"
 # 厨驼领取后多久没交稿可被重新领取（分钟）
 CHEF_CLAIM_TTL_MIN = "30"
 # 密钥 CHEF_KEY 不写在这里：本地放 worker/.dev.vars（已 gitignore），线上用 wrangler secret（待大王审批）
@@ -39,6 +40,34 @@ CHEF_MOCK = "0"
 #  - 配了 ACCESS_TEAM_DOMAIN + ACCESS_AUD → 校验 Cf-Access-Jwt-Assertion（JWKS 验签，线上用）
 #  - 否则 DEV_AUTH=1（放 .dev.vars）→ 本地模拟登录 /api/dev/login
 #  - 都没配 → kitchen 一律 401
-# Access 团队域名（如 xxx.cloudflareaccess.com）和应用 AUD，上线时由大王审批后填写
+# Access 团队域名（如 xxx.cloudflareaccess.com）和应用 AUD，上线时经大王审批后填写
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""
+
+# ---------------- 备选：R2 存照片（本地 npx wrangler dev --env r2）----------------
+# wrangler 的 env 不继承绑定和 vars，所以这里要完整重复一遍
+[env.r2]
+name = "koala-canteen-r2"
+
+[[env.r2.d1_databases]]
+binding = "DB"
+database_name = "koala-canteen"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[env.r2.kv_namespaces]]
+binding = "PHOTOS_KV"
+id = "00000000000000000000000000000000"
+
+[[env.r2.r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "koala-canteen-photos"
+
+[env.r2.vars]
+PHOTO_STORE = "r2"
+STORAGE_LIMIT_BYTES = "996147200"
+KV_DAILY_WRITE_LIMIT = "1000"
+CHEF_CLAIM_TTL_MIN = "30"
+CHEF_MOCK = "0"
 ACCESS_TEAM_DOMAIN = ""
 ACCESS_AUD = ""

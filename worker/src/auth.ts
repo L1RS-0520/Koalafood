@@ -54,8 +54,9 @@ export async function verifyAccessJwt(token: string, env: Env): Promise<{ email:
   if (typeof payload.nbf === "number" && payload.nbf > now + 30) return null;
   const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
   if (!aud.includes(env.ACCESS_AUD!.trim())) return null;
-  const iss = String(payload.iss ?? "").replace(/\/+$/, "");
-  if (iss && !iss.endsWith(team.replace(/^https?:\/\//, "").replace(/\/+$/, ""))) return null;
+  // iss 必须正好是本团队域名（不能只比后缀，否则 evilxxx.cloudflareaccess.com 也能过）
+  const host = (u: string) => u.replace(/^https?:\/\//, "").replace(/\/+$/, "").toLowerCase();
+  if (host(String(payload.iss ?? "")) !== host(team)) return null;
   return { email: typeof payload.email === "string" ? payload.email : null };
 }
 

@@ -5,6 +5,7 @@
 //   node scripts/migrate-photos --from r2 --to kv               # 默认就是 r2 → kv
 //   node scripts/migrate-photos --from r2 --to kv --persist-to .wrangler/state
 //   node scripts/migrate-photos --dry-run                       # 只统计不写
+//   涉及 r2 时自动使用 wrangler.toml 的 [env.r2] 绑定（默认配置不含 R2）
 //
 // 规则：目标里已有同一个键就跳过（可重复运行）；拷完逐张比对 SHA-256；源数据不删除。
 // 建议先停掉使用同一份数据的 wrangler dev，并先备份 .wrangler/state。
@@ -18,12 +19,14 @@ const from = opt("--from", "r2"), to = opt("--to", "kv");
 // 与 wrangler dev --persist-to 同义：wrangler 实际把数据放在 <目录>/v3 下
 const persist = opt("--persist-to", ".wrangler/state");
 const dry = args.includes("--dry-run");
+// 默认配置不含 R2；涉及 r2 时自动用 [env.r2] 的绑定（也可 --env 显式指定）
+const wenv = opt("--env", from === "r2" || to === "r2" ? "r2" : undefined);
 const KINDS = ["r2", "kv", "d1"];
 if (!KINDS.includes(from) || !KINDS.includes(to) || from === to) {
   console.error("用法：--from r2|kv|d1 --to r2|kv|d1（两者不同）"); process.exit(1);
 }
 
-const { env, dispose } = await getPlatformProxy({ persist: { path: join(persist, "v3") } });
+const { env, dispose } = await getPlatformProxy({ persist: { path: join(persist, "v3") }, ...(wenv ? { environment: wenv } : {}) });
 const sha = (buf) => createHash("sha256").update(new Uint8Array(buf)).digest("hex");
 
 const store = (kind) => ({

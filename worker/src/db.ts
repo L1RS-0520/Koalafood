@@ -10,7 +10,7 @@ export interface DishRow {
   chef_requested_at: string | null; claimed_at: string | null; draft_at: string | null;
   created_at: string; updated_at: string;
 }
-export interface PhotoRow { id: string; dish_id: string; r2_key: string; content_type: string; position: number; created_at: string }
+export interface PhotoRow { id: string; dish_id: string; r2_key: string; content_type: string; size: number; position: number; created_at: string }
 
 const parseJson = <T>(s: string | null, dflt: T): T => { if (!s) return dflt; try { return JSON.parse(s) as T; } catch { return dflt; } };
 const parseArr = (s: string) => { const v = parseJson<unknown>(s, []); return Array.isArray(v) ? v : []; };

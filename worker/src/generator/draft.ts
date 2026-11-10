@@ -22,7 +22,7 @@ export type NormalizeResult =
 
 export interface NormalizeOptions {
   /**
-   * chef：厨驼交稿，严格——食材 ≥1 项、步骤 3–12 步；
+   * chef：厨驼交稿 / 大王 confirm 合并后，严格——食材 ≥1 项且每项 amount 非空、步骤 3–12 步；
    *       仅当带了非空 chef_message 且食材、步骤都是空数组时，允许空稿。
    * edit：大王手写/编辑/确认时修改，宽松——允许全空，步骤最多 30 步。
    */
@@ -152,6 +152,7 @@ export function normalizeDraft(input: unknown, opts: NormalizeOptions = {}): Nor
         amount = str(fieldOf(r, ["amount", "quantity", "用量"])) ?? "";
       }
       if (!name) { errors.push(`第 ${i + 1} 项食材缺少 name（食材名）`); return; }
+      if (mode === "chef" && !amount) { errors.push(`第 ${i + 1} 项食材「${name}」缺少 amount（用量），请写具体用量如“300克”`); return; }
       if (len(name) > LIMITS.ingredientName) { warnings.push(`第 ${i + 1} 项食材名过长，已截断`); name = cut(name, LIMITS.ingredientName); }
       if (len(amount) > LIMITS.ingredientAmount) { warnings.push(`第 ${i + 1} 项食材用量过长，已截断`); amount = cut(amount, LIMITS.ingredientAmount); }
       ingredients.push({ name, amount });

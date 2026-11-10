@@ -11,7 +11,9 @@
     "seed": "python3 scripts/seed",
     "migrate-photos": "node scripts/migrate-photos",
     "selftest": "node scripts/selftest.mjs",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "test:unit": "node --test test-unit/*.test.mts",
+    "selftest:quota": "node scripts/selftest-quota.mjs"
   },
   "license": "ISC",
   "type": "module",
