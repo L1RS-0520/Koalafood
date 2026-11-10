@@ -538,7 +538,7 @@
   padding-right: 10px;
 }
 .warn-line b {
-  color: #b4232a;
+  color: var(--red);
   background: linear-gradient(transparent 60%, var(--tag-yellow) 60%);
 }
 .del-preview img {
@@ -1047,13 +1047,14 @@
 }
 .input::placeholder,
 .textarea::placeholder {
-  color: #a99d94;
+  color: var(--muted);
 }
 .input:focus,
 .textarea:focus,
 .mini-field input:focus {
-  outline: none;
-  box-shadow: 3px 3px 0 var(--primary);
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  box-shadow: none;
 }
 .input--lg {
   min-height: 52px;
@@ -1080,7 +1081,7 @@
 .is-invalid .input,
 .is-invalid .textarea {
   border-color: var(--danger);
-  box-shadow: 3px 3px 0 var(--danger);
+  box-shadow: none;
 }
 .field-foot {
   display: flex;
@@ -1095,10 +1096,10 @@
   color: var(--text-2);
 }
 .counter.over {
-  color: #b4232a;
+  color: var(--red);
 }
 .field-error {
-  color: #b4232a;
+  color: var(--red);
   font-size: 14px;
   font-weight: 700;
   line-height: 20px;
@@ -1141,26 +1142,19 @@
     background-color var(--t-fast);
 }
 .chip-pick.on {
-  transform: translateY(-2px) rotate(-2deg);
-  box-shadow: 3px 3px 0 var(--ink);
+  background: var(--ink);
+  color: var(--on-primary);
+  box-shadow: none;
+  transform: none;
 }
-.chip-pick--soup.on {
-  background: var(--secondary);
-}
-.chip-pick--staple.on {
-  background: var(--accent);
-}
-.chip-pick--home.on {
-  background: var(--primary);
-}
-.chip-pick--sweet.on {
-  background: var(--blush);
-}
-.chip-pick--snack.on {
-  background: #ffb36b;
-}
+.chip-pick--soup.on,
+.chip-pick--staple.on,
+.chip-pick--home.on,
+.chip-pick--sweet.on,
+.chip-pick--snack.on,
 .chip-pick--other.on {
-  background: #d6d7de;
+  background: var(--ink);
+  color: var(--on-primary);
 }
 .is-invalid .chip-pick {
   border-color: var(--danger);
@@ -1198,7 +1192,7 @@
   position: absolute;
   inset: 3px 0;
   border-radius: var(--r-pill);
-  background: var(--accent);
+  background: var(--card);
   box-shadow: inset 0 0 0 2px var(--ink);
   z-index: -1;
   pointer-events: none;
@@ -1217,7 +1211,8 @@
   transition: background-color var(--t-mid);
 }
 .switch.on {
-  background: var(--secondary);
+  background: var(--ink);
+  color: var(--on-primary);
 }
 .switch-knob {
   position: absolute;

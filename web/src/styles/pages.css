@@ -252,7 +252,8 @@
   flex: none;
   border: var(--line-md);
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink);
+  color: var(--on-primary);
   font-family: var(--font-num);
   font-weight: 800;
   font-size: 17px;
@@ -262,7 +263,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--tag-green);
+  background: var(--card);
   font-size: 15px;
   line-height: 24px;
 }
@@ -282,8 +283,8 @@
   min-height: 168px;
   padding: 12px 8px 14px;
   border: var(--line);
-  border-radius: 16px;
-  background: #fff;
+  border-radius: var(--r-card);
+  background: var(--card);
   text-align: center;
   transition:
     transform var(--t-fast) var(--ease-pop),
@@ -323,17 +324,14 @@
     transform var(--t-mid) var(--ease-pop);
 }
 .mode-card.on {
-  transform: translateY(-3px) rotate(-1deg);
-  box-shadow: var(--shadow);
+  background: var(--card);
+  box-shadow: none;
+  transform: none;
 }
-.mode-card--chef.on {
-  background:
-    repeating-conic-gradient(from 0deg at 50% 30%, rgba(255, 210, 63, 0.35) 0 8deg, transparent 8deg 18deg),
-    var(--tag-green);
-}
+.mode-card--chef.on,
 .mode-card--self.on {
-  background: var(--tag-yellow);
-  transform: translateY(-3px) rotate(1deg);
+  background: var(--card);
+  transform: none;
 }
 .mode-card.on .mode-check {
   opacity: 1;
@@ -345,9 +343,10 @@
 .chef-note {
   margin-top: 14px;
   padding: 12px 14px;
-  border: 2px dashed var(--secondary-dark);
-  border-radius: 12px;
-  background: #f6fbf8;
+  border: var(--line-sm);
+  border-style: dashed;
+  border-radius: var(--r-card);
+  background: var(--card);
   font-size: 14px;
   line-height: 22px;
   color: var(--text-2);
@@ -392,10 +391,10 @@
   position: relative;
   aspect-ratio: 1;
   border: var(--line-md);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   overflow: hidden;
   background: var(--cream-2);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition:
     transform var(--t-fast),
     box-shadow var(--t-fast);
@@ -409,8 +408,8 @@
   -webkit-user-drag: none;
 }
 .photo-tile--cover {
-  border-width: 3px;
-  border-color: var(--primary-dark);
+  border-width: var(--line-w);
+  border-color: var(--ink);
 }
 .photo-tile.is-dragging {
   z-index: 5;
@@ -419,12 +418,12 @@
   transition: none;
 }
 .photo-tile.is-target {
-  outline: 3px dashed var(--primary);
-  outline-offset: 3px;
+  outline: var(--line-w) dashed var(--ink);
+  outline-offset: 2px;
 }
 .photo-tile.is-bad {
   border-color: var(--danger);
-  box-shadow: 0 0 0 3px var(--danger);
+  box-shadow: none;
 }
 .photo-bad {
   position: absolute;
@@ -444,7 +443,7 @@
   padding: 0 7px;
   border: 2px solid var(--ink);
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--card);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -537,9 +536,9 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  border: 2.5px dashed var(--ink);
-  border-radius: 12px;
-  background: var(--tag-yellow);
+  border: var(--line-w) dashed var(--ink);
+  border-radius: var(--r-card);
+  background: var(--card);
   font-size: 13px;
   font-weight: 700;
 }
@@ -587,7 +586,7 @@
   color: var(--text-2);
 }
 .mini-field input {
-  border-width: 2.5px;
+  border-width: var(--line-w);
 }
 .quick .field {
   margin-top: 14px;
@@ -604,7 +603,7 @@
   padding: 2px 8px;
   border: 1.5px solid var(--ink);
   border-radius: 8px;
-  background: var(--tag-green);
+  background: var(--card);
   font-size: 13px;
   line-height: 20px;
   animation: pop-in 220ms var(--ease-pop) both;
@@ -1168,7 +1167,7 @@
   color: var(--text-2);
 }
 .ing-cell.on {
-  background: var(--tag-green);
+  background: var(--card);
 }
 .ing-cell.on .ing-name {
   text-decoration: line-through 2.5px var(--ink);
@@ -1563,7 +1562,7 @@
   padding: 0 10px;
   border: var(--line-sm);
   border-radius: 6px;
-  background: var(--tag-green);
+  background: var(--card);
   font-size: 12px;
   font-weight: 700;
   line-height: 22px;
@@ -1670,9 +1669,9 @@
   margin-top: 20px;
   padding: 18px 16px;
   border: var(--line);
-  border-radius: 20px;
+  border-radius: var(--r-card);
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 .setting-art {
   position: relative;
@@ -1680,11 +1679,9 @@
   justify-content: center;
   padding: 10px 0 14px;
   margin: -18px -16px 16px;
-  border-bottom: var(--line);
-  border-radius: 17px 17px 0 0;
-  background:
-    repeating-conic-gradient(from 0deg at 50% 90%, rgba(255, 210, 63, 0.4) 0 7deg, transparent 7deg 16deg),
-    var(--tag-green);
+  border-bottom: var(--line-sm);
+  border-radius: var(--r-card) var(--r-card) 0 0;
+  background: var(--card);
 }
 .setting-card--off .setting-art {
   background: var(--tag-gray);
@@ -1698,11 +1695,12 @@
   border-radius: 8px;
   font-family: var(--font-display);
   font-size: 16px;
-  transform: rotate(6deg);
-  box-shadow: var(--shadow-sm);
+  transform: none;
+  box-shadow: none;
 }
 .setting-sign.on {
-  background: var(--accent);
+  background: var(--ink);
+  color: var(--on-primary);
 }
 .setting-sign.off {
   background: #fff;
@@ -1814,9 +1812,9 @@
   margin-top: 20px;
   padding: 16px;
   border: var(--line);
-  border-radius: 20px;
+  border-radius: var(--r-card);
   background: var(--surface);
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 .storage-card h2 {
   font-size: 20px;
@@ -1924,10 +1922,10 @@
   gap: 2px;
   padding: 0;
   border: 0;
-  border-top: 2.5px solid var(--ink);
+  border-top: var(--line-sm);
   border-radius: 0;
-  background: #e3f4ec;
-  color: #2a7354; /* #2A7354 在 #E3F4EC 上对比度 5.01；现有 --storage-pct-ok #2F7D57 只有 4.39，不够 4.5 */
+  background: var(--card);
+  color: var(--muted);
   font-family: var(--font-num);
   font-weight: 800;
   font-size: 12px;
@@ -1943,7 +1941,7 @@
 }
 .photo-tile.is-bad {
   border-color: var(--danger);
-  box-shadow: 2px 2px 0 var(--danger);
+  box-shadow: none;
 }
 .photo-tile.is-bad img {
   filter: saturate(0.4) brightness(0.85);
