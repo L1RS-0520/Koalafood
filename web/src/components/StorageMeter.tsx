@@ -83,14 +83,14 @@ export function StorageMeter({ s }: { s: Storage | null }) {
 }
 
 /** 429：页面顶部提示条（不弹框） */
-export function QuotaBanner({ onClose }: { onClose?: () => void }) {
+export function QuotaBanner({ onClose, page = 'edit' }: { onClose?: () => void; page?: 'upload' | 'edit' }) {
   return (
     <div className="quota-banner" role="alert">
       <Koala pose="think" size={58} />
       <div>
         <span className="cap-tag cap-tag--ops">今日上传次数</span>
         <b>{STORAGE_ERROR_TEXT.STORAGE_QUOTA}</b>
-        <small>{STORAGE_TEXT.quotaHint}</small>
+        <small>{page === 'upload' ? STORAGE_TEXT.quotaHintUpload : STORAGE_TEXT.quotaHint}</small>
       </div>
       {onClose && (
         <button type="button" className="quota-x" aria-label="关掉提示" onClick={onClose}>
@@ -115,7 +115,7 @@ export function FullDialog({ open, onClose }: { open: boolean; onClose: () => vo
         </button>
       }
     >
-      这次填的内容都还在，删掉一些旧照片后回来，直接点保存就行。
+      {STORAGE_TEXT.fullBody}
     </Dialog>
   )
 }

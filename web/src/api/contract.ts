@@ -115,11 +115,34 @@ export const STORAGE_TEXT = {
   warn: '照片柜已经用了 80%，可以删掉一些旧照片啦',
   danger: '照片柜快满啦（已用 95%），赶紧删掉一些旧照片吧',
   hint: '在菜品编辑页可以删掉不要的照片',
+  /** 429 副文案 · 编辑页（产品审核 round-1 第三节 ②） */
   quotaHint: '已填写的内容都还在，不用重填；不加新照片的修改照常可以保存',
+  /** 429 副文案 · 上传页（新菜一定带照片，不说“不加新照片照常保存”） */
+  quotaHintUpload: '已填写的内容都还在，不用重填，明天直接点上传就行',
+  /** 507 弹框正文（只有一个「知道了」） */
+  fullBody: '这次填的内容都还在，删掉一些不要的照片后，再点保存就行。',
 } as const
+
+/**
+ * 选图时逐张校验的提示（产品审核 round-1 第三节 ② 定稿）。
+ * PhotoManager 选图校验和 compress 解码失败共用，保证两处一字不差。
+ */
+const MB_BYTES = 1024 * 1024
+export const PHOTO_TEXT = {
+  heic: (name: string) => `「${name}」是 HEIC 格式，请换成 JPG/PNG（iPhone 可在 设置-相机-格式 选‘兼容性最佳’）`,
+  /** 原图超 10MB；X 保留 1 位小数（如 12.3） */
+  tooBig: (name: string, bytes: number) => `「${name}」有 ${(bytes / MB_BYTES).toFixed(1)} MB，超过 10MB 了，换一张小一点的吧`,
+} as const
+
+/** 文件是不是 HEIC/HEIF（按 MIME 或扩展名） */
+export const isHeic = (f: { type: string; name: string }) => /heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name)
 
 /** 照片存储相关错误码 → 固定文案（不显示后端 message） */
 export const STORAGE_ERROR_TEXT: Record<string, string> = {
   STORAGE_QUOTA: '今天食堂的照片柜塞满啦，明天再来传吧～',
   STORAGE_FULL: '照片柜满啦，删掉一些旧照片才能继续上传～',
 }
+
+
+/** 确认草稿（直接确认 / 修改后确认）之后的顶部提示（设计 §5.7，产品审核 P2-4） */
+export const CONFIRMED_TEXT = '已确认，菜谱上线啦！'

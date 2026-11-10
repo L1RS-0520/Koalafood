@@ -2,6 +2,9 @@
 // 先降质量、再缩尺寸，直到达标；按 EXIF 方向摆正；解码不了（如部分 HEIC）给友好提示。
 // 隐私：所有照片一律经 canvas 重新编码（哪怕原图很小也不直传），输出不带 EXIF/GPS。
 
+// 带 .ts 扩展名：scripts/compress.test.ts 用 node --experimental-strip-types 直接加载本文件
+import { isHeic, PHOTO_TEXT } from '../api/contract.ts'
+
 export const COMPRESS = {
   maxSide: 1600,
   targetBytes: 500 * 1024,
@@ -64,11 +67,10 @@ async function decode(file: File): Promise<{ src: CanvasImageSource; width: numb
     return { src: img, width: img.naturalWidth, height: img.naturalHeight, close: () => URL.revokeObjectURL(url) }
   } catch {
     URL.revokeObjectURL(url)
-    const heic = /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)
     throw new CompressError(
       'DECODE',
-      heic
-        ? `「${file.name}」是 HEIC 格式，请换成 JPG 或 PNG 再传（iPhone：设置 > 相机 > 格式 > 兼容性最佳）`
+      isHeic(file)
+        ? PHOTO_TEXT.heic(file.name)
         : `「${file.name}」打不开，可能文件坏了或格式不支持，换一张试试`,
     )
   }

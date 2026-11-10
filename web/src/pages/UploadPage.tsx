@@ -240,7 +240,7 @@ export function UploadPage() {
           submit()
         }}
       >
-        {quota && <QuotaBanner onClose={() => setQuota(false)} />}
+        {quota && <QuotaBanner page="upload" onClose={() => setQuota(false)} />}
         <StorageWarn s={storage} />
         <section className="form-card" id="f-photos" aria-labelledby="h-photos">
           <h2 className="form-card-title" id="h-photos">

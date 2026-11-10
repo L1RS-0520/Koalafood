@@ -1,7 +1,7 @@
 // 多图管理：预览网格、删除、拖动排序（指针事件，手机可用）+ 前移/后移/设封面按钮兜底；第一张为封面
 import { useRef, useState } from 'react'
-import { LIMITS } from '../api'
-import { cx, formatBytes, kb } from '../lib/util'
+import { isHeic, LIMITS, PHOTO_TEXT } from '../api'
+import { cx, kb } from '../lib/util'
 import { Icon } from './Icon'
 import { Confirm, Spinner } from './ui'
 
@@ -14,15 +14,13 @@ export interface PhotoItem {
   size?: number
 }
 
-export const HEIC_TIP = 'iPhone 可以在「设置 > 相机 > 格式」里选「兼容性最佳」，以后拍的就是 JPG 了'
-
 /** 校验选中的文件：返回可用文件 + 中文错误 */
 export function checkFiles(files: File[], existing: number): { ok: File[]; errors: string[] } {
   const ok: File[] = []
   const errors: string[] = []
   for (const f of files) {
-    if (/heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name)) {
-      errors.push(`「${f.name}」是 HEIC 格式，请换成 JPG 或 PNG 再传（${HEIC_TIP}）`)
+    if (isHeic(f)) {
+      errors.push(PHOTO_TEXT.heic(f.name))
       continue
     }
     if (!(LIMITS.photoTypes as readonly string[]).includes(f.type)) {
@@ -30,7 +28,7 @@ export function checkFiles(files: File[], existing: number): { ok: File[]; error
       continue
     }
     if (f.size > LIMITS.photoMaxBytes) {
-      errors.push(`「${f.name}」有 ${formatBytes(f.size)}，单张不能超过 10MB`)
+      errors.push(PHOTO_TEXT.tooBig(f.name, f.size))
       continue
     }
     if (existing + ok.length >= LIMITS.photosMax) {

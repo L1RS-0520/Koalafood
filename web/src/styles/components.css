@@ -346,23 +346,6 @@
   height: 100%;
   color: #fff;
 }
-.card-count {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 7px 1px 5px;
-  border: var(--line-sm);
-  border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.94);
-  font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 13px;
-  line-height: 20px;
-}
 .card-stamp {
   position: absolute;
   left: 8px;
@@ -433,19 +416,6 @@
   margin: 0;
   color: var(--text-2);
 }
-.card-chef--off {
-  background: #eeeef2;
-}
-.card-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--text-2);
-  white-space: nowrap;
-}
 @media (prefers-reduced-motion: reduce) {
   .card-chef-avatar .llama {
     animation: none;
@@ -460,20 +430,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.card-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin-top: 8px;
-}
-.card-date {
-  font-family: var(--font-num);
-  font-weight: 700;
-  font-size: 12px;
-  color: var(--text-2);
-  white-space: nowrap;
 }
 @media (min-width: 640px) {
   .card-body {
