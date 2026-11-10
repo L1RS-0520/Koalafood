@@ -194,7 +194,7 @@ export function DishPage() {
     <main className="page page--detail">
       {/* 中间不放标题（分类在菜名下的胶囊里），右侧放身份区（设计 §5.2，走查 P2-2） */}
       <TopBar title="" right={<AccountActions />} />
-      <article className="detail">
+      <article className={cx('detail', owner && draftEmpty && 'detail--draft-empty')}>
         <h1 className="detail-name">
           <span>{dish.name}</span>
         </h1>

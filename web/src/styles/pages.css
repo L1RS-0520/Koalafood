@@ -1943,3 +1943,22 @@
   height: 44px;
   color: var(--text-2);
 }
+
+/* 验收 R1-04：电脑上 4:3 相册有 ~520px 高，空草稿的红色厨驼留言会掉到首屏以下。
+   ≥960px 时把状态条和留言卡提到菜名下面、相册上面（手机不变，菜名在前的顺序不变） */
+@media (min-width: 960px) {
+  .detail--draft-empty {
+    display: flex;
+    flex-direction: column;
+  }
+  .detail--draft-empty > * {
+    order: 2;
+  }
+  .detail--draft-empty > .detail-name {
+    order: 0;
+  }
+  .detail--draft-empty > .state-bar,
+  .detail--draft-empty > .chef-msg {
+    order: 1;
+  }
+}
