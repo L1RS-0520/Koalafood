@@ -127,19 +127,21 @@ export function HomePage() {
         </div>
       ) : dishes.length === 0 ? (
         category === ALL ? (
-          <StatePanel
-            pose="point"
-            title="食堂还没开张，快上传第一道菜"
-            text={app.canEdit ? '拍张照、写个菜名就行，菜谱可以交给厨驼。' : '大王还没上新菜，过会儿再来看看吧。'}
-            action={
-              app.canEdit && (
+          // 整站没有菜（需求 v2.4.6 §12-33 第 5 条）：访客只读、没有按钮；大王配「＋ 上传新菜」
+          app.canEdit ? (
+            <StatePanel
+              pose="point"
+              title="食堂还空着，上传第一道菜吧。"
+              action={
                 <Link className="btn btn--primary btn--lg" to="/kitchen/upload">
                   <Icon name="plus" size={20} />
-                  上传第一道菜
+                  上传新菜
                 </Link>
-              )
-            }
-          />
+              }
+            />
+          ) : (
+            <StatePanel pose="point" title="食堂还没开张呢，过几天再来看看～" />
+          )
         ) : (
           // 分类空（设计 空状态.png ①②、§5.10，走查 P1-5）：访客没有上传权限，不提“添一道”、不放按钮；
           // 大王给「＋ 上传新菜」，进上传页时预选当前分类
