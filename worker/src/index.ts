@@ -1,0 +1,542 @@
+/**
+ * 考拉食堂 Worker（接口约定 v2.3.2：读公开 /api/*，写入 /api/kitchen/*，厨驼 /api/chef/*）
+ */
+import { Hono, type Context, type Next } from "hono";
+import type { Env } from "./env.ts";
+import {
+  ApiError, errorResponse, CATEGORIES, checkName, checkCategory, checkNote, checkShortText,
+  readPhoto, tooLargeMessage, PHOTO_KEY_RE, safeEqual, nowIso, type PhotoInfo,
+  MAX_JSON_BYTES, bodyTooLargeMessage, type ErrorDetail,
+} from "./lib.ts";
+import { toDish, toTask, draftColumns, getDish, getPhotos, getChefEnabled, type DishRow, type PhotoRow } from "./db.ts";
+import { normalizeDraft, type RecipeDraft, type NormalizeResult } from "./generator/draft.ts";
+import { mockDraft } from "./generator/mock-chef.ts";
+import { getPhotoStore } from "./storage/photo-store.ts";
+import { StorageQuotaError, StorageFullError, checkBeforeWrite, storageReport, addOps, opsRemaining, utcDay } from "./storage/usage.ts";
+import { getViewer, devAuthEnabled, DEV_COOKIE, type Viewer } from "./auth.ts";
+
+type Vars = { viewer: Viewer };
+type C = Context<{ Bindings: Env; Variables: Vars }>;
+const app = new Hono<{ Bindings: Env; Variables: Vars }>();
+const MAX_PHOTOS = 9;
+const CHEF_MOCK_DELAY_MS = 20_000;
+
+// ---------- 通用 ----------
+const STORAGE_QUOTA_MSG = "今天食堂的照片柜塞满啦，明天再来传吧～";
+const STORAGE_FULL_MSG = "照片柜满啦，删掉一些旧照片才能继续上传～";
+app.onError((err, c) => {
+  if (err instanceof ApiError) return errorResponse(c, err);
+  if (err instanceof StorageFullError) {
+    console.warn("存储容量：", err.message);
+    return errorResponse(c, new ApiError("STORAGE_FULL", STORAGE_FULL_MSG));
+  }
+  if (err instanceof StorageQuotaError) {
+    console.warn("存储额度：", err.message);
+    return errorResponse(c, new ApiError("STORAGE_QUOTA", STORAGE_QUOTA_MSG));
+  }
+  console.error("未处理错误", err);
+  return errorResponse(c, new ApiError("INTERNAL", "服务器开小差了，请稍后再试"));
+});
+app.notFound((c) => errorResponse(c, new ApiError("NOT_FOUND", "没有这个接口")));
+
+// v2.3.3 R1-06：不再发 CORS 头。线上同源（Worker 用 assets 托管前端）；本地前端 vite dev/preview
+// 把 /api 代理到后端（web/vite.config.ts 的 server/preview.proxy，前端一律 fetch 相对路径 /api…），
+// 浏览器看到的也是同源。以前「ACAO * + Allow-Credentials true」的组合是错的，整段去掉。
+// 所有 /api/* 响应（含错误、404、照片）都带 X-Content-Type-Options: nosniff。
+app.use("/api/*", async (c, next) => {
+  await next();
+  try { c.res.headers.set("X-Content-Type-Options", "nosniff"); }
+  catch { // 不可变的响应头：复制一份再设
+    c.res = new Response(c.res.body, c.res);
+    c.res.headers.set("X-Content-Type-Options", "nosniff");
+  }
+});
+
+app.use("/api/*", async (c, next) => { c.set("viewer", await getViewer(c.req.raw, c.env)); await next(); });
+
+/** maxBytes：超出 → 413 TOO_LARGE。先看 Content-Length（不读 body），没有再按实际读到的字节数 */
+async function readJson(c: C, maxBytes?: number): Promise<Record<string, unknown>> {
+  let text: string;
+  if (maxBytes) {
+    const cl = Number(c.req.header("Content-Length"));
+    if (Number.isFinite(cl) && cl > maxBytes) throw new ApiError("TOO_LARGE", bodyTooLargeMessage(cl));
+    const buf = await c.req.arrayBuffer();
+    if (buf.byteLength > maxBytes) throw new ApiError("TOO_LARGE", bodyTooLargeMessage(buf.byteLength));
+    text = new TextDecoder().decode(buf);
+  } else text = await c.req.text();
+  if (!text.trim()) return {};
+  let v: unknown;
+  try { v = JSON.parse(text); } catch { throw new ApiError("VALIDATION", "请求内容不是合法的 JSON"); }
+  if (!v || typeof v !== "object" || Array.isArray(v)) throw new ApiError("VALIDATION", "请求内容必须是 JSON 对象");
+  return v as Record<string, unknown>;
+}
+async function readForm(c: C): Promise<FormData> {
+  try { return await c.req.formData(); }
+  catch { throw new ApiError("VALIDATION", "请用 multipart/form-data 格式提交（含照片）"); }
+}
+async function mustDish(db: D1Database, id: string): Promise<DishRow> {
+  const d = await getDish(db, id);
+  if (!d) throw new ApiError("NOT_FOUND", "这道菜不存在，可能已经被删除了");
+  return d;
+}
+async function dishJson(c: C, id: string, full?: boolean) {
+  const d = await mustDish(c.env.DB, id);
+  const dish = toDish(d, await getPhotos(c.env.DB, id));
+  if (!(full ?? c.get("viewer").logged_in)) { dish.draft = null; dish.requested_note = null; dish.chef_requested_at = null; }
+  return dish;
+}
+
+// ---------- 照片 ----------
+async function readPhotos(form: FormData, min: number, max: number): Promise<PhotoInfo[]> {
+  if (form.has("photo")) throw new ApiError("VALIDATION", "照片字段名已改为 photos（可重复），请不要再用 photo");
+  const files = form.getAll("photos").filter((f) => typeof f !== "string" || f !== "");
+  if (files.length < min) throw new ApiError("VALIDATION", "请至少上传 1 张菜品照片");
+  if (files.length > max) throw new ApiError("VALIDATION", `照片最多 ${MAX_PHOTOS} 张，这次最多还能传 ${max} 张`);
+  const out: PhotoInfo[] = [];
+  for (const [i, f] of files.entries()) {
+    try { out.push(await readPhoto(f)); }
+    catch (e) {
+      if (e instanceof ApiError && files.length > 1)
+        throw new ApiError(e.code, e.code === "TOO_LARGE" ? tooLargeMessage((f as File).size, i + 1) : `第 ${i + 1} 张照片：${e.message}`);
+      throw e;
+    }
+  }
+  return out;
+}
+/**
+ * 写照片。Workers 免费版每次请求最多 50 次 D1 查询，所以 KV 次数在这里按“整批”计：
+ * 写前预判一次（容量 507 → 次数 429），写完一次性 addOps，而不是每张照片各查各记。
+ */
+async function putPhotos(env: Env, dishId: string, photos: PhotoInfo[], startPos: number) {
+  const store = getPhotoStore(env);
+  await checkBeforeWrite(env, store.kind, photos.reduce((s, p) => s + p.bytes.byteLength, 0), photos.length);
+  const now = nowIso();
+  const rows: PhotoRow[] = [];
+  let attempted = 0;
+  try {
+    for (const [i, p] of photos.entries()) {
+      const key = `${crypto.randomUUID()}.${p.ext}`;
+      attempted++; // 失败的请求也可能被 KV 计数，保守起见都记
+      await store.put(key, p.bytes, p.type);
+      rows.push({ id: crypto.randomUUID(), dish_id: dishId, r2_key: key, content_type: p.type, size: p.bytes.byteLength, position: startPos + i, created_at: now });
+    }
+  } catch (e) {
+    if (store.kind === "kv") await addOps(env.DB, attempted);
+    await removeStored(env, rows.map((r) => ({ key: r.r2_key, size: r.size })), "上传中途失败的清理");
+    throw e;
+  }
+  if (store.kind === "kv") await addOps(env.DB, attempted);
+  return rows;
+}
+
+/**
+ * 删存储里的照片：尽力而为，永不抛错。KV 今天剩余次数不够的、或删除报错的，
+ * 一次性批量记进 orphan_photos（含 size），下次写入时后台重试。
+ */
+async function removeStored(env: Env, items: { key: string; size: number }[], reason: string) {
+  if (!items.length) return;
+  const store = getPhotoStore(env);
+  const now = nowIso();
+  const budget = store.kind === "kv" ? await opsRemaining(env) : Infinity;
+  const orphans: { key: string; size: number; why: string }[] = [];
+  let attempted = 0;
+  for (const [i, it] of items.entries()) {
+    if (i >= budget) { orphans.push({ ...it, why: "今天 KV 写入/删除额度已用完" }); continue; }
+    attempted++;
+    try { await store.delete(it.key); }
+    catch (e) { orphans.push({ ...it, why: (e as Error).message }); }
+  }
+  if (store.kind === "kv" && attempted) await addOps(env.DB, attempted);
+  if (!orphans.length) return;
+  console.warn(`照片删除失败 ${orphans.length} 张，记为孤儿待重试`);
+  try {
+    await env.DB.batch(orphans.map((o) => env.DB.prepare(`INSERT INTO orphan_photos(key, store, size, reason, attempts, created_at) VALUES (?,?,?,?,0,?)
+      ON CONFLICT(key) DO UPDATE SET reason=excluded.reason`).bind(o.key, store.kind, o.size, `${reason}：${o.why}`.slice(0, 300), now)));
+  } catch (e2) { console.error("记录孤儿照片失败", (e2 as Error).message); }
+}
+
+/** 顺手重试清理孤儿照片（每次最多 20 个、不超过今天剩余 KV 次数），在写入请求结束后后台执行 */
+async function retryOrphans(env: Env) {
+  const store = getPhotoStore(env);
+  const budget = Math.min(20, store.kind === "kv" ? await opsRemaining(env) : 20);
+  if (budget <= 0) return;
+  const r = await env.DB.prepare("SELECT key FROM orphan_photos ORDER BY created_at LIMIT ?").bind(budget).all<{ key: string }>();
+  if (!r.results.length) return;
+  const done: string[] = [], failed: string[] = [];
+  for (const { key } of r.results) {
+    try { await store.delete(key); done.push(key); }
+    catch (e) { failed.push(key); if (e instanceof StorageQuotaError) break; }
+  }
+  const now = nowIso();
+  const stmts = [
+    ...done.map((k) => env.DB.prepare("DELETE FROM orphan_photos WHERE key=?").bind(k)),
+    ...failed.map((k) => env.DB.prepare("UPDATE orphan_photos SET attempts=attempts+1, last_try_at=? WHERE key=?").bind(now, k)),
+  ];
+  if (store.kind === "kv") stmts.push(env.DB.prepare("INSERT INTO kv_usage(day, ops) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET ops = ops + excluded.ops").bind(utcDay(), done.length + failed.length));
+  if (stmts.length) await env.DB.batch(stmts);
+}
+const insertPhotoStmts = (db: D1Database, rows: PhotoRow[]) => rows.map((r) =>
+  db.prepare("INSERT INTO dish_photos(id,dish_id,r2_key,content_type,size,position,created_at) VALUES (?,?,?,?,?,?,?)")
+    .bind(r.id, r.dish_id, r.r2_key, r.content_type, r.size, r.position, r.created_at));
+
+app.get("/api/photos/:key", async (c) => {
+  const key = c.req.param("key")!;
+  if (!PHOTO_KEY_RE.test(key)) throw new ApiError("NOT_FOUND", "照片不存在");
+  // 只给 dish_photos 里登记着的照片：已删除但存储里还没清掉的孤儿照片不再对外可见
+  const reg = await c.env.DB.prepare("SELECT 1 AS x FROM dish_photos WHERE r2_key = ?").bind(key).first();
+  if (!reg) throw new ApiError("NOT_FOUND", "照片不存在");
+  return servePhoto(c, key);
+});
+async function servePhoto(c: C, key: string) {
+  const obj = await getPhotoStore(c.env).get(key);
+  if (!obj) throw new ApiError("NOT_FOUND", "照片不存在");
+  const h = new Headers();
+  h.set("Content-Type", obj.contentType);
+  h.set("ETag", obj.etag);
+  h.set("Cache-Control", "public, max-age=31536000, immutable"); // 键是 uuid，不复用
+  h.set("X-Content-Type-Options", "nosniff"); // R1-06：按 Content-Type 显示，不让浏览器猜
+  return new Response(obj.body, { headers: h });
+}
+
+// ---------- CHEF_MOCK 联调：惰性把 pending 满 20 秒的菜写成示例草稿 ----------
+async function runChefMock(env: Env) {
+  if (env.CHEF_MOCK !== "1") return;
+  const cutoff = new Date(Date.now() - CHEF_MOCK_DELAY_MS).toISOString();
+  const r = await env.DB.prepare("SELECT * FROM dishes WHERE chef_status='pending' AND chef_requested_at <= ? LIMIT 10").bind(cutoff).all<DishRow>();
+  for (const d of r.results) {
+    const draft = mockDraft({ name: d.name, category: d.category, note: d.note, requested_note: d.requested_note });
+    const now = nowIso();
+    await env.DB.prepare("UPDATE dishes SET chef_status='draft', draft=?, draft_at=?, claimed_at=NULL, updated_at=? WHERE id=? AND chef_status='pending'")
+      .bind(JSON.stringify(draft), now, now, d.id).run();
+  }
+}
+const chefMockMw = async (c: C, next: Next) => { await runChefMock(c.env); await next(); };
+
+// ---------- 公开读 ----------
+app.get("/api/health", chefMockMw, async (c) => {
+  const p = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM dishes WHERE chef_status='pending'").first<{ n: number }>();
+  const o = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM orphan_photos").first<{ n: number }>().catch(() => null);
+  return c.json({ ok: true, chef_enabled: await getChefEnabled(c.env.DB), chef_pending: p?.n ?? 0, chef_mock: c.env.CHEF_MOCK === "1", photo_store: getPhotoStore(c.env).kind, orphan_photos: o?.n ?? 0 });
+});
+app.get("/api/categories", (c) => c.json({ categories: CATEGORIES }));
+app.get("/api/settings", async (c) => c.json({ chef_enabled: await getChefEnabled(c.env.DB) }));
+app.get("/api/me", (c) => {
+  const v = c.get("viewer");
+  return c.json({ logged_in: v.logged_in, email: v.email, can_edit: v.logged_in });
+});
+
+app.get("/api/dishes", chefMockMw, async (c) => {
+  const cat = c.req.query("category")?.trim();
+  // total_time 取 dishes.total_time 列：它只存「已确认」的正式内容（草稿在 draft 列里），
+  // 所以 pending/draft 的菜只会显示旧的正式值或 null，不会把草稿漏给访客——与详情页 toDish 同一口径。
+  const SQL = `SELECT d.id, d.name, d.category, d.source, d.chef_status, d.total_time, d.created_at,
+      (SELECT r2_key FROM dish_photos p WHERE p.dish_id = d.id ORDER BY position, created_at LIMIT 1) AS cover,
+      (SELECT COUNT(*) FROM dish_photos p WHERE p.dish_id = d.id) AS photo_count
+    FROM dishes d`;
+  let stmt;
+  if (!cat || cat === "全部") stmt = c.env.DB.prepare(`${SQL} ORDER BY d.created_at DESC, d.id DESC`);
+  else {
+    checkCategory(cat);
+    stmt = c.env.DB.prepare(`${SQL} WHERE d.category = ? ORDER BY d.created_at DESC, d.id DESC`).bind(cat);
+  }
+  const r = await stmt.all<{ id: string; name: string; category: string; source: string; chef_status: string; total_time: string | null; created_at: string; cover: string | null; photo_count: number }>();
+  return c.json({
+    dishes: r.results.map((d) => ({
+      id: d.id, name: d.name, category: d.category, photo_url: d.cover ? `/api/photos/${d.cover}` : null,
+      photo_count: d.photo_count, source: d.source, chef_status: d.chef_status, total_time: d.total_time ?? null, created_at: d.created_at,
+    })),
+  });
+});
+app.get("/api/dishes/:id", chefMockMw, async (c) => c.json(await dishJson(c, c.req.param("id")!)));
+
+// ---------- 本地模拟登录 ----------
+app.post("/api/dev/login", (c) => {
+  if (!devAuthEnabled(c.env)) throw new ApiError("NOT_FOUND", "没有这个接口");
+  c.header("Set-Cookie", `${DEV_COOKIE}=1; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+  return c.json({ ok: true, logged_in: true });
+});
+app.post("/api/dev/logout", (c) => {
+  if (!devAuthEnabled(c.env)) throw new ApiError("NOT_FOUND", "没有这个接口");
+  c.header("Set-Cookie", `${DEV_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  return c.json({ ok: true, logged_in: false });
+});
+
+// ---------- 写入（需登录） ----------
+app.use("/api/kitchen/*", async (c, next) => {
+  if (c.req.method === "OPTIONS") return next();
+  if (!c.get("viewer").logged_in) throw new ApiError("UNAUTHORIZED", "请先登录考拉食堂再操作");
+  await next();
+  // 有写入操作时，后台顺手重试清理孤儿照片（不影响本次响应）
+  const job = retryOrphans(c.env).catch((e) => console.error("孤儿照片清理出错", (e as Error).message));
+  try { c.executionCtx.waitUntil(job); } catch { await job; }
+});
+
+/** 解析手写/编辑提交的内容字段（JSON 字符串或数组都行），返回规范化后的 RecipeDraft */
+/** 校验失败的 details：可定位的问题（只写了编号）给对象，其余给字符串 */
+const draftDetails = (r: Extract<NormalizeResult, { ok: false }>): ErrorDetail[] =>
+  r.errors.map((e) => r.issues.find((i) => i.message === e) ?? e);
+
+function parseContent(raw: Record<string, unknown>, base?: RecipeDraft): RecipeDraft {
+  const pick = (k: string) => {
+    const v = raw[k];
+    if (typeof v === "string" && (k === "ingredients" || k === "steps" || k === "tips")) {
+      if (!v.trim()) return [];
+      try { return JSON.parse(v); } catch { throw new ApiError("VALIDATION", `${k} 不是合法的 JSON`); }
+    }
+    return v;
+  };
+  const merged: Record<string, unknown> = { ...(base ?? {}) };
+  for (const k of ["ingredients", "steps", "tips", "servings", "total_time"]) if (raw[k] !== undefined) merged[k] = pick(k);
+  delete merged.chef_message;
+  const r = normalizeDraft(merged, { mode: "edit" });
+  if (!r.ok) throw new ApiError("VALIDATION", r.errors.join("；"), draftDetails(r));
+  return r.draft;
+}
+const CONTENT_KEYS = ["ingredients", "steps", "tips", "servings", "total_time"];
+const rowDraft = (d: DishRow): RecipeDraft => ({
+  ingredients: JSON.parse(d.ingredients), steps: JSON.parse(d.steps), tips: JSON.parse(d.tips),
+  servings: d.servings, total_time: d.total_time,
+});
+
+app.post("/api/kitchen/dishes", async (c) => {
+  const form = await readForm(c);
+  const name = checkName(form.get("name"));
+  const category = checkCategory(form.get("category"));
+  const note = checkNote(form.get("note"));
+  const mode = String(form.get("mode") ?? "manual").trim() || "manual";
+  if (mode !== "chef" && mode !== "manual") throw new ApiError("VALIDATION", "mode 只能是 chef（找厨驼写）或 manual（自己写）");
+  if (mode === "chef" && !(await getChefEnabled(c.env.DB))) throw new ApiError("CHEF_DISABLED", "厨驼已在设置里关闭，请先打开或改为自己写");
+  const fields: Record<string, unknown> = {};
+  for (const k of CONTENT_KEYS) { const v = form.get(k); if (typeof v === "string") fields[k] = v; }
+  const content = mode === "manual"
+    ? parseContent(fields)
+    : { ingredients: [], steps: [], tips: [], servings: null, total_time: null };
+  if (mode === "manual") {
+    checkShortText(content.servings, "份量"); checkShortText(content.total_time, "总时长");
+  }
+  const photos = await readPhotos(form, 1, MAX_PHOTOS);
+
+  const id = crypto.randomUUID();
+  const now = nowIso();
+  const rows = await putPhotos(c.env, id, photos, 0);
+  const cols = draftColumns(content);
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare(`INSERT INTO dishes(id,name,category,note,ingredients,steps,tips,servings,total_time,source,chef_status,chef_requested_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, name, category, note, cols.ingredients, cols.steps, cols.tips, cols.servings, cols.total_time,
+        mode, mode === "chef" ? "pending" : "confirmed", mode === "chef" ? now : null, now, now),
+      ...insertPhotoStmts(c.env.DB, rows),
+    ]);
+  } catch (e) {
+    await removeStored(c.env, rows.map((r) => ({ key: r.r2_key, size: r.size })), "写 D1 失败的清理");
+    throw e;
+  }
+  return c.json(await dishJson(c, id, true), 201);
+});
+
+app.patch("/api/kitchen/dishes/:id", async (c) => {
+  const id = c.req.param("id")!;
+  const d = await mustDish(c.env.DB, id);
+  const body = await readJson(c, MAX_JSON_BYTES);
+  const sets: string[] = [], vals: unknown[] = [];
+  if (body.name !== undefined) { sets.push("name=?"); vals.push(checkName(body.name)); }
+  if (body.category !== undefined) { sets.push("category=?"); vals.push(checkCategory(body.category)); }
+  if (body.note !== undefined) { sets.push("note=?"); vals.push(checkNote(body.note)); }
+  if (CONTENT_KEYS.some((k) => body[k] !== undefined)) {
+    const content = parseContent(body, rowDraft(d));
+    const cols = draftColumns(content);
+    sets.push("ingredients=?", "steps=?", "tips=?", "servings=?", "total_time=?");
+    vals.push(cols.ingredients, cols.steps, cols.tips, cols.servings, cols.total_time);
+    // 大王亲手改了正式内容：来源变手写，作废没处理完的厨驼任务
+    sets.push("source='manual'", "chef_status='confirmed'", "draft=NULL", "requested_note=NULL", "claimed_at=NULL", "chef_requested_at=NULL");
+  }
+  if (sets.length) {
+    sets.push("updated_at=?"); vals.push(nowIso());
+    await c.env.DB.prepare(`UPDATE dishes SET ${sets.join(",")} WHERE id=?`).bind(...vals, id).run();
+  }
+  return c.json(await dishJson(c, id, true));
+});
+
+app.delete("/api/kitchen/dishes/:id", async (c) => {
+  const id = c.req.param("id")!;
+  await mustDish(c.env.DB, id);
+  const photos = await getPhotos(c.env.DB, id);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM dish_photos WHERE dish_id=?").bind(id),
+    c.env.DB.prepare("DELETE FROM dishes WHERE id=?").bind(id),
+  ]);
+  await removeStored(c.env, photos.map((p) => ({ key: p.r2_key, size: p.size })), "删除菜品");
+  return c.json({ ok: true });
+});
+
+app.post("/api/kitchen/dishes/:id/photos", async (c) => {
+  const id = c.req.param("id")!;
+  await mustDish(c.env.DB, id);
+  const existing = await getPhotos(c.env.DB, id);
+  const left = MAX_PHOTOS - existing.length;
+  if (left <= 0) throw new ApiError("VALIDATION", `每道菜最多 ${MAX_PHOTOS} 张照片，已经满了`);
+  const photos = await readPhotos(await readForm(c), 1, left);
+  const start = existing.reduce((m, p) => Math.max(m, p.position + 1), 0);
+  const rows = await putPhotos(c.env, id, photos, start);
+  try {
+    await c.env.DB.batch([...insertPhotoStmts(c.env.DB, rows),
+      c.env.DB.prepare("UPDATE dishes SET updated_at=? WHERE id=?").bind(nowIso(), id)]);
+  } catch (e) { await removeStored(c.env, rows.map((r) => ({ key: r.r2_key, size: r.size })), "写 D1 失败的清理"); throw e; }
+  return c.json(await dishJson(c, id, true));
+});
+
+app.put("/api/kitchen/dishes/:id/photos/order", async (c) => {
+  const id = c.req.param("id")!;
+  await mustDish(c.env.DB, id);
+  const body = await readJson(c);
+  const ids = body.ids;
+  const existing = await getPhotos(c.env.DB, id);
+  if (!Array.isArray(ids) || ids.some((x) => typeof x !== "string")) throw new ApiError("VALIDATION", "ids 必须是照片 id 数组");
+  const set = new Set(ids as string[]);
+  if (set.size !== ids.length || ids.length !== existing.length || existing.some((p) => !set.has(p.id)))
+    throw new ApiError("VALIDATION", "ids 必须正好包含这道菜的全部照片 id，各一次");
+  await c.env.DB.batch([
+    ...(ids as string[]).map((pid, i) => c.env.DB.prepare("UPDATE dish_photos SET position=? WHERE id=? AND dish_id=?").bind(i, pid, id)),
+    c.env.DB.prepare("UPDATE dishes SET updated_at=? WHERE id=?").bind(nowIso(), id),
+  ]);
+  return c.json(await dishJson(c, id, true));
+});
+
+app.delete("/api/kitchen/dishes/:id/photos/:photoId", async (c) => {
+  const id = c.req.param("id")!, pid = c.req.param("photoId")!;
+  await mustDish(c.env.DB, id);
+  const existing = await getPhotos(c.env.DB, id);
+  const target = existing.find((p) => p.id === pid);
+  if (!target) throw new ApiError("NOT_FOUND", "这张照片不存在");
+  if (existing.length <= 1) throw new ApiError("VALIDATION", "每道菜至少要留 1 张照片");
+  const rest = existing.filter((p) => p.id !== pid);
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM dish_photos WHERE id=?").bind(pid),
+    ...rest.map((p, i) => c.env.DB.prepare("UPDATE dish_photos SET position=? WHERE id=?").bind(i, p.id)),
+    c.env.DB.prepare("UPDATE dishes SET updated_at=? WHERE id=?").bind(nowIso(), id),
+  ]);
+  await removeStored(c.env, [{ key: target.r2_key, size: target.size }], "删除照片");
+  return c.json(await dishJson(c, id, true));
+});
+
+app.post("/api/kitchen/dishes/:id/ask-chef", async (c) => {
+  const id = c.req.param("id")!;
+  await mustDish(c.env.DB, id);
+  if (!(await getChefEnabled(c.env.DB))) throw new ApiError("CHEF_DISABLED", "厨驼已在设置里关闭，请先打开");
+  const body = await readJson(c);
+  const req = checkNote(body.note);
+  const now = nowIso();
+  await c.env.DB.prepare(`UPDATE dishes SET chef_status='pending', draft=NULL, draft_at=NULL, claimed_at=NULL,
+      requested_note=?, chef_requested_at=?, updated_at=? WHERE id=?`).bind(req, now, now, id).run();
+  return c.json(await dishJson(c, id, true));
+});
+
+app.post("/api/kitchen/dishes/:id/confirm", async (c) => {
+  const id = c.req.param("id")!;
+  const d = await mustDish(c.env.DB, id);
+  if (d.chef_status !== "draft") throw new ApiError("BAD_STATE", "这道菜现在没有待确认的厨驼草稿");
+  const body = await readJson(c, MAX_JSON_BYTES);
+  const draft = JSON.parse(d.draft ?? "{}") as RecipeDraft;
+  const merged = parseContent(body, draft); // 先按宽松规则解析大王的修改
+  if (!merged.ingredients.length && !merged.steps.length)
+    throw new ApiError("VALIDATION", "草稿是空的，不能直接确认；可以放弃草稿，或者自己写好再保存");
+  // 合并结果走和交稿同一套严格校验（食材有用量、步骤 3–12 步）；大王手写保存不受此限
+  const strict = normalizeDraft({ ...merged, chef_message: null }, { mode: "chef" });
+  if (!strict.ok) throw new ApiError("VALIDATION", "确认后的菜谱不合格：" + strict.errors.join("；"), draftDetails(strict));
+  const content = strict.draft;
+  const cols = draftColumns(content);
+  const res = await c.env.DB.prepare(`UPDATE dishes SET ingredients=?, steps=?, tips=?, servings=?, total_time=?, source='chef',
+      chef_status='confirmed', draft=NULL, requested_note=NULL, claimed_at=NULL, updated_at=?
+      WHERE id=? AND chef_status='draft' AND draft IS ?`)
+    .bind(cols.ingredients, cols.steps, cols.tips, cols.servings, cols.total_time, nowIso(), id, d.draft).run();
+  // 原子：只确认「读到的那份草稿」；并发 discard / ask-chef / 新草稿改过状态时不写入
+  if (!res.meta.changes) throw new ApiError("BAD_STATE", "这道菜的草稿刚刚被改了（放弃 / 重新找厨驼），没有确认，请刷新看看");
+  return c.json(await dishJson(c, id, true));
+});
+
+app.post("/api/kitchen/dishes/:id/discard-draft", async (c) => {
+  const id = c.req.param("id")!;
+  const d = await mustDish(c.env.DB, id);
+  if (d.chef_status !== "draft") throw new ApiError("BAD_STATE", "这道菜现在没有待确认的厨驼草稿，不能放弃");
+  // 原子：只放弃「此刻仍是 draft」的菜；并发 ask-chef 已改回 pending 时不能把它覆盖成 confirmed
+  const res = await c.env.DB.prepare(`UPDATE dishes SET chef_status='confirmed', draft=NULL, requested_note=NULL, claimed_at=NULL,
+      chef_requested_at=NULL, updated_at=? WHERE id=? AND chef_status='draft'`).bind(nowIso(), id).run();
+  if (!res.meta.changes) throw new ApiError("BAD_STATE", "这道菜刚刚被改了状态，没有待确认的厨驼草稿可放弃，请刷新看看");
+  return c.json(await dishJson(c, id, true));
+});
+
+app.get("/api/kitchen/storage", async (c) => c.json(await storageReport(c.env, getPhotoStore(c.env).kind)));
+
+app.patch("/api/kitchen/settings", async (c) => {
+  const body = await readJson(c);
+  if (typeof body.chef_enabled !== "boolean") throw new ApiError("VALIDATION", "chef_enabled 必须是 true 或 false");
+  await c.env.DB.prepare("INSERT INTO settings(key,value) VALUES ('chef_enabled',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    .bind(String(body.chef_enabled)).run();
+  return c.json({ chef_enabled: body.chef_enabled });
+});
+
+// ---------- 厨驼（X-Chef-Key） ----------
+app.use("/api/chef/*", async (c, next) => {
+  if (c.req.method === "OPTIONS") return next();
+  const want = c.env.CHEF_KEY;
+  if (!want) throw new ApiError("UNAUTHORIZED", "服务器没有配置 CHEF_KEY，请先运行 worker/scripts/init-dev-vars");
+  const got = c.req.header("X-Chef-Key") ?? "";
+  if (!got || !(await safeEqual(got, want))) throw new ApiError("UNAUTHORIZED", "厨驼密钥不对（X-Chef-Key）");
+  await next();
+});
+/** §12-5：厨驼关闭时，厨驼的领取/交稿接口一律 403；已有 pending 保留，已交草稿大王照常 confirm/discard */
+const chefOnMw = async (c: C, next: Next) => {
+  if (!(await getChefEnabled(c.env.DB))) throw new ApiError("CHEF_DISABLED", "厨驼已在设置里关闭，暂时不接新任务");
+  await next();
+};
+const claimTtlMs = (env: Env) => (Number(env.CHEF_CLAIM_TTL_MIN) || 30) * 60_000;
+
+app.get("/api/chef/tasks", chefOnMw, chefMockMw, async (c) => {
+  const r = await c.env.DB.prepare("SELECT * FROM dishes WHERE chef_status='pending' ORDER BY chef_requested_at, created_at").all<DishRow>();
+  const tasks = [];
+  for (const d of r.results) tasks.push(toTask(d, await getPhotos(c.env.DB, d.id)));
+  return c.json({ tasks });
+});
+
+app.post("/api/chef/tasks/:id/claim", chefOnMw, async (c) => {
+  const id = c.req.param("id")!;
+  const d = await mustDish(c.env.DB, id);
+  if (d.chef_status !== "pending") throw new ApiError("BAD_STATE", "这道菜不在待写状态，不能领取");
+  if (d.claimed_at && Date.now() - Date.parse(d.claimed_at) < claimTtlMs(c.env))
+    throw new ApiError("CONFLICT", `这道菜在 ${d.claimed_at} 已被领取，${Number(c.env.CHEF_CLAIM_TTL_MIN) || 30} 分钟内不能重复领取`);
+  // 原子领取：状态 + 「没人领 / 上次领取已过期」写进 WHERE，并发时只有一个能写进去
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const cutoff = new Date(nowMs - claimTtlMs(c.env)).toISOString();
+  const res = await c.env.DB.prepare(`UPDATE dishes SET claimed_at=? WHERE id=? AND chef_status='pending'
+      AND (claimed_at IS NULL OR claimed_at < ?)`).bind(now, id, cutoff).run();
+  if (!res.meta.changes) {
+    const cur = await mustDish(c.env.DB, id);
+    if (cur.chef_status !== "pending") throw new ApiError("BAD_STATE", "这道菜不在待写状态，不能领取");
+    throw new ApiError("CONFLICT", `这道菜在 ${cur.claimed_at} 已被领取，${Number(c.env.CHEF_CLAIM_TTL_MIN) || 30} 分钟内不能重复领取`);
+  }
+  return c.json(toTask({ ...d, claimed_at: now }, await getPhotos(c.env.DB, id)));
+});
+
+app.get("/api/chef/tasks/:id/photos/:photoId", async (c) => {
+  const p = await c.env.DB.prepare("SELECT * FROM dish_photos WHERE id=? AND dish_id=?")
+    .bind(c.req.param("photoId")!, c.req.param("id")!).first<PhotoRow>();
+  if (!p) throw new ApiError("NOT_FOUND", "照片不存在");
+  return servePhoto(c, p.r2_key);
+});
+
+app.post("/api/chef/tasks/:id/draft", chefOnMw, async (c) => {
+  const id = c.req.param("id")!;
+  const d = await mustDish(c.env.DB, id);
+  if (d.chef_status !== "pending") throw new ApiError("BAD_STATE", `这道菜现在是 ${d.chef_status} 状态，只有 pending（待写）的菜能交稿`);
+  const body = await readJson(c, MAX_JSON_BYTES);
+  const r = normalizeDraft(body, { mode: "chef" });
+  if (!r.ok) throw new ApiError("VALIDATION", "草稿没通过校验：" + r.errors.join("；"), draftDetails(r));
+  const now = nowIso();
+  const res = await c.env.DB.prepare("UPDATE dishes SET chef_status='draft', draft=?, draft_at=?, claimed_at=NULL, updated_at=? WHERE id=? AND chef_status='pending'")
+    .bind(JSON.stringify(r.draft), now, now, id).run();
+  if (!res.meta.changes) throw new ApiError("BAD_STATE", "这道菜刚刚被改了状态，交稿没写进去，请重新 list 看看");
+  return c.json({ ...(await dishJson(c, id, true)), warnings: r.warnings });
+});
+
+export default app;

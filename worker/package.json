@@ -1,0 +1,33 @@
+{
+  "name": "koala-canteen-worker",
+  "version": "1.0.0",
+  "description": "考拉食堂 后端 Worker",
+  "scripts": {
+    "predev": "mkdir -p ../web/dist && [ -f ../web/dist/index.html ] || printf \"<!doctype html><meta charset=utf-8><title>考拉食堂</title><p>前端尚未构建（web/dist 占位页，由后端 dev 脚本生成）</p>\" > ../web/dist/index.html",
+    "dev": "npm run predev --silent && npm run db:migrate && wrangler dev --local --port ${PORT:-8787} --ip 0.0.0.0",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "db:reset": "rm -rf .wrangler/state && npm run db:migrate",
+    "init-dev-vars": "node scripts/init-dev-vars",
+    "seed": "python3 scripts/seed",
+    "migrate-photos": "node scripts/migrate-photos",
+    "selftest": "node scripts/selftest.mjs",
+    "typecheck": "tsc -p .",
+    "test:unit": "node --test test-unit/*.test.mts",
+    "selftest:quota": "node scripts/selftest-quota.mjs"
+  },
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "hono": "^4.13.17"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261110.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.159.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261109.1": true
+  },
+  "private": true
+}

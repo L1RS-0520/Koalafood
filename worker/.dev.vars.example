@@ -1,0 +1,9 @@
+# worker/.dev.vars 示例（真正的 .dev.vars 不进 git，权限 600）
+# 用 ./scripts/init-dev-vars 生成，它会写入随机 CHEF_KEY（不显示）和 DEV_AUTH=1。
+CHEF_KEY=<由 scripts/init-dev-vars 随机生成，不要手填、不要外传>
+DEV_AUTH=1
+# 可选：覆盖 wrangler.toml 里的默认值（改完重启 wrangler dev）
+# KV 每个 UTC 日 put+delete 上限，默认 1000；本地想测 429 可以调到 5
+# KV_DAILY_WRITE_LIMIT=5
+# 照片总容量上限：线上固定 950MB（996147200 字节）；STORAGE_LIMIT_BYTES 和 STORAGE_USED_SIM 只在本地生效。本地想测 507 可以调小，如 300000
+# STORAGE_LIMIT_BYTES=300000

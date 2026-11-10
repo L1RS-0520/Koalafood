@@ -1,0 +1,273 @@
+// 生成 fixtures/*.json（改了规则就改这里再运行一次）：
+//   node test/fixtures/build-fixtures.mjs
+import { writeFileSync } from 'node:fs';
+
+const out = (f, v) => writeFileSync(new URL(f, import.meta.url),
+  JSON.stringify(v, null, 2) + '\n');
+const steps = (n, extra = {}) => Array.from({ length: n }, (_, i) => ({
+  text: `第${i + 1}份食材下锅，中火翻炒1分钟`,
+  heat: '中火', time: '1分钟', caption: '翻炒！', ...extra,
+}));
+const ing = [
+  { name: '鸡蛋', amount: '3个' }, { name: '番茄', amount: '2个' },
+];
+const r = (o) => ({ ingredients: ing, steps: steps(3), ...o });
+
+// 1) 厨驼草稿质量校验器（validateRecipe）
+out('chef-recipes.json', {
+  good: [
+    { label: '正好 3 步', recipe: r({}) },
+    { label: '正好 12 步', recipe: r({ steps: steps(12) }) },
+    { label: 'caption 为空串', recipe: r({ steps: steps(3,
+      { caption: '' }) }) },
+    { label: 'caption 正好 12 字', recipe: r({ steps: steps(3,
+      { caption: '一二三四五六七八九十一二' }) }) },
+    { label: 'heat/time 空串', recipe: r({ steps: steps(4,
+      { heat: '', time: '' }) }) },
+  ],
+  bad: [
+    { label: '不是对象', recipe: null, expect: '不是对象' },
+    { label: 'ingredients 缺失', recipe: { steps: steps(3) },
+      expect: 'ingredients 不是数组' },
+    { label: 'ingredients 为空', recipe: r({ ingredients: [] }),
+      expect: 'ingredients 为空' },
+    { label: '食材缺 name', recipe: r({ ingredients: [
+      { amount: '3个' }] }), expect: 'ingredients[0].name' },
+    { label: '食材 name 空白', recipe: r({ ingredients: [
+      { name: '  ', amount: '3个' }] }), expect: 'ingredients[0].name' },
+    { label: '食材缺 amount', recipe: r({ ingredients: [ing[0],
+      { name: '番茄' }] }), expect: 'ingredients[1].amount' },
+    { label: '食材 amount 空串', recipe: r({ ingredients: [
+      { name: '番茄', amount: '' }] }), expect: 'ingredients[0].amount' },
+    { label: '食材是字符串', recipe: r({ ingredients: ['鸡蛋'] }),
+      expect: 'ingredients[0] 不是对象' },
+    { label: 'steps 缺失', recipe: { ingredients: ing },
+      expect: 'steps 不是数组' },
+    { label: '2 步', recipe: r({ steps: steps(2) }),
+      expect: 'steps 数量 2' },
+    { label: '13 步', recipe: r({ steps: steps(13) }),
+      expect: 'steps 数量 13' },
+    { label: '0 步', recipe: r({ steps: [] }), expect: 'steps 数量 0' },
+    { label: '步骤缺 text', recipe: r({ steps: [...steps(2),
+      { heat: '中火', caption: '' }] }), expect: 'steps[2].text' },
+    { label: '步骤 text 空串', recipe: r({ steps: [{ text: '',
+      caption: '' }, ...steps(2)] }), expect: 'steps[0].text' },
+    { label: '步骤是纯字符串', recipe: r({ steps: ['打蛋', '炒', '出锅'] }),
+      expect: 'steps[0] 不是对象' },
+    { label: '步骤 text 非中文', recipe: r({ steps: [...steps(2),
+      { text: 'Stir fry', caption: '' }] }), expect: '不含中文' },
+    { label: '缺 caption', recipe: r({ steps: [{ text: '洗菜' },
+      ...steps(2)] }), expect: 'caption 缺失' },
+    { label: 'caption 13 字', recipe: r({ steps: steps(3,
+      { caption: '一二三四五六七八九十一二三' }) }), expect: 'caption 超过' },
+    { label: 'caption 是数字', recipe: r({ steps: steps(3,
+      { caption: 1 }) }), expect: 'caption 应为字符串' },
+    { label: 'heat 不是字符串', recipe: r({ steps: steps(3,
+      { heat: null }) }), expect: '.heat 应为字符串' },
+  ],
+});
+
+// 2) 交稿接口：服务端应接受(ok) / 400(bad)。API 用例直接复用。
+const long = '滋啦滋啦滋啦下锅啦快看香不香';  // 14 字，应被截断到 12
+out('chef-submissions.json', {
+  ok: {
+    three: { ...r({}), tips: ['番茄选熟透的'], servings: '2人份',
+      total_time: '15分钟' },
+    twelve: { ...r({ steps: steps(12) }), tips: [] },
+    longCaption: { ...r({ steps: steps(3, { caption: long }) }) },
+    chefMessage: { chef_message: '照片看不清是什么菜，能再拍一张吗',
+      ingredients: [], steps: [] },
+  },
+  longCaption: long,
+  bad: [
+    { label: '只有 2 步', body: r({ steps: steps(2) }) },
+    { label: '13 步', body: r({ steps: steps(13) }) },
+    { label: '0 步（无 chef_message）', body: r({ steps: [] }) },
+    { label: '食材缺 name', body: r({ ingredients: [{ amount: '1个' }] }) },
+    { label: '食材缺 amount', body: r({ ingredients: [{ name: '盐' }] }) },
+    { label: '食材 amount 空串', body: r({ ingredients: [
+      { name: '盐', amount: '' }] }) },
+    { label: '食材 amount 全空格', body: r({ ingredients: [
+      { name: '盐', amount: '  ' }] }) },
+    { label: '食材为空、3 步、无 chef_message', body: r({
+      ingredients: [] }) },
+    { label: '步骤缺 text', body: r({ steps: [...steps(2),
+      { heat: '中火' }] }) },
+    { label: 'ingredients 不是数组', body: r({ ingredients: '鸡蛋' }) },
+    { label: 'steps 不是数组', body: r({ steps: { text: '炒' } }) },
+    { label: 'chef_message 空串且内容为空', body: { chef_message: '',
+      ingredients: [], steps: [] } },
+    { label: '交稿是数组', body: [r({})] },
+  ],
+});
+
+// 3) 接口对象校验器
+const base = {
+  id: '0b8f4a52-1c2d-4e5f-8a9b-0c1d2e3f4a5b', name: '番茄炒蛋',
+  category: '家常菜', note: null, photo_url: '/api/photos/abc.png',
+  photos: [{ id: 'p1', url: '/api/photos/abc.png' },
+    { id: 'p2', url: '/api/photos/def.jpg' }],
+  ingredients: ing, steps: steps(3), tips: [], servings: null,
+  total_time: '15分钟', source: 'chef', chef_status: 'confirmed',
+  draft: null, requested_note: null,
+  chef_requested_at: '2026-11-09T12:00:00Z',
+  created_at: '2026-11-09T12:00:00.000Z',
+  updated_at: '2026-11-09T12:00:00Z',
+};
+const draft = { ingredients: ing, steps: steps(3), tips: [],
+  servings: null, total_time: null, chef_message: null };
+out('dishes.json', {
+  base,
+  good: [
+    { label: 'confirmed 厨驼菜' , patch: {} },
+    { label: 'pending 空内容', patch: { chef_status: 'pending',
+      ingredients: [], steps: [], requested_note: '少放辣' } },
+    { label: 'draft 带草稿、正式内容为空', patch: { chef_status: 'draft',
+      ingredients: [], steps: [], draft } },
+    { label: 'draft 只有 chef_message', patch: { chef_status: 'draft',
+      draft: { ...draft, ingredients: [], steps: [],
+        chef_message: '照片看不清' } } },
+    { label: '手写全空', patch: { source: 'manual', ingredients: [],
+      steps: [], note: '随便炒的', chef_requested_at: null } },
+    { label: '未登录视角：draft 状态但 draft=null', anon: true,
+      patch: { chef_status: 'draft' } },
+    { label: '手写 amount 空串', patch: { source: 'manual',
+      ingredients: [{ name: '盐', amount: '' }] } },
+  ],
+  bad: [
+    { label: 'id 不是 UUID', patch: { id: '123' }, expect: 'id 不是 UUID' },
+    { label: '分类不在固定列表', patch: { category: '火锅' },
+      expect: 'category' },
+    { label: '缺 draft 字段', del: 'draft', expect: '缺字段 draft' },
+    { label: '缺 requested_note', del: 'requested_note',
+      expect: '缺字段 requested_note' },
+    { label: 'photo_url 不对', patch: { photo_url: 'https://x/y.png' },
+      expect: 'photo_url' },
+    { label: 'tips 不是数组', patch: { tips: null }, expect: 'tips' },
+    { label: '旧状态 done', patch: { chef_status: 'done' },
+      expect: 'chef_status 非法' },
+    { label: '旧状态 none', patch: { chef_status: 'none' },
+      expect: 'chef_status 非法' },
+    { label: 'source 旧值 ai', patch: { source: 'ai' },
+      expect: 'source 非法' },
+    { label: 'confirmed 却有 draft', patch: { draft },
+      expect: '状态下 draft 应为空' },
+    { label: 'draft 状态没有 draft', patch: { chef_status: 'draft' },
+      expect: 'draft 状态下 draft 应为对象' },
+    { label: '未登录却返回 draft', anon: true, patch: {
+      chef_status: 'draft', draft }, expect: '未登录时 draft' },
+    { label: '未登录却返回 requested_note', anon: true, patch: {
+      requested_note: '加土豆' }, expect: '未登录时 requested_note' },
+    { label: 'draft 里步骤缺 text', patch: { chef_status: 'draft',
+      draft: { ...draft, steps: [{ heat: '', time: '',
+        caption: '' }] } }, expect: 'draft.steps[0].text' },
+    { label: '食材缺 name', patch: { ingredients: [{ amount: '1' }] },
+      expect: 'ingredients[0].name' },
+    { label: '步骤缺 heat 字段', patch: { steps: [{ text: '炒',
+      time: '', caption: '' }] }, expect: 'steps[0].heat 缺失' },
+    { label: '缺 photos', del: 'photos', expect: '缺字段 photos' },
+    { label: 'photos 为空', patch: { photos: [] },
+      expect: 'photos 数量 0' },
+    { label: 'photos 10 张', patch: { photos: Array.from({ length: 10 },
+      (_, i) => ({ id: `p${i}`, url: `/api/photos/${i}.png` })) },
+      expect: 'photos 数量 10' },
+    { label: '封面不是第一张', patch: { photo_url: '/api/photos/def.jpg' },
+      expect: '封面' },
+    { label: '照片 id 重复', patch: { photos: [
+      { id: 'p1', url: '/api/photos/abc.png' },
+      { id: 'p1', url: '/api/photos/x.png' }] }, expect: 'id 重复' },
+    { label: '时间不是 UTC', patch: { created_at: '2026-11-09 12:00' },
+      expect: 'created_at' },
+  ],
+  summary: {
+    good: { id: base.id, name: '番茄炒蛋', category: '家常菜',
+      photo_url: '/api/photos/a', photo_count: 2, chef_status: 'pending',
+      source: 'chef', created_at: '2026-11-09T12:00:00Z' },
+    bad: [
+      { del: 'chef_status', expect: '缺字段 chef_status' },
+      { del: 'source', expect: '缺字段 source' },
+      { patch: { category: '火锅' }, expect: 'category' },
+      { patch: { chef_status: 'done' }, expect: 'chef_status 非法' },
+      { del: 'photo_count', expect: '缺字段 photo_count' },
+      { patch: { photo_count: 10 }, expect: 'photo_count' },
+    ],
+  },
+  task: {
+    good: { id: base.id, name: '番茄炒蛋', category: '家常菜',
+      note: null, photo_url: '/api/photos/a',
+      photos: [{ id: 'p1', url: '/api/photos/a' }],
+      requested_at: '2026-11-09T12:00:00Z', claimed_at: null },
+    bad: [
+      { patch: { photos: [{ id: 'p1', url: 'http://x/a' }] },
+        expect: 'task.photos[0] 结构不对' },
+      { patch: { claimed_at: 'yesterday' }, expect: 'claimed_at' },
+      { del: 'photos', expect: 'task.photos 不是数组' },
+    ],
+  },
+  me: {
+    good: [
+      { v: { logged_in: false, email: null, can_edit: false },
+        logged: false },
+      { v: { logged_in: true, email: 'koala@example.com',
+        can_edit: true }, logged: true },
+      { v: { logged_in: true, email: null, can_edit: true },
+        logged: true },
+    ],
+    bad: [
+      { v: { can_edit: true }, expect: 'logged_in' },
+      { v: { logged_in: true, email: null, can_edit: false },
+        expect: 'can_edit 应等于' },
+      { v: { logged_in: false, email: 'a@b.c', can_edit: false },
+        logged: false, expect: 'email 应为 null' },
+      { v: { logged_in: true, can_edit: true }, expect: 'email' },
+      { v: { logged_in: true, email: null, can_edit: true },
+        logged: false, expect: 'logged_in 应为 false' },
+    ],
+  },
+  health: {
+    good: [{ ok: true, chef_enabled: true, chef_pending: 2,
+      chef_mock: false, photo_store: 'kv', orphan_photos: 0 },
+    { ok: true, chef_enabled: false, chef_pending: 0, chef_mock: true,
+      photo_store: 'r2', orphan_photos: 3 }],
+    bad: [
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        photo_store: 'kv' }, expect: 'chef_mock' },
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        chef_mock: false, photo_store: 'kv' }, expect: 'orphan_photos' },
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        chef_mock: false, photo_store: 'kv', orphan_photos: -1 },
+      expect: 'orphan_photos' },
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        chef_mock: false, photo_store: 'kv', orphan_photos: 1.5 },
+      expect: 'orphan_photos' },
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        chef_mock: false, photo_store: 'kv', orphan_photos: '0' },
+      expect: 'orphan_photos' },
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        chef_mock: false }, expect: 'photo_store' },
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        chef_mock: 'no', photo_store: 'kv' }, expect: 'chef_mock' },
+      { v: { ok: true, chef_enabled: true, chef_pending: 0,
+        chef_mock: false, photo_store: 's3' }, expect: 'photo_store' },
+      { v: { ok: true, chef_enabled: true }, expect: 'chef_pending' },
+      { v: { ok: true, chef_enabled: 'yes', chef_pending: 0 },
+        expect: 'chef_enabled' },
+      { v: { ok: true, chef_enabled: true, chef_pending: '2' },
+        expect: 'chef_pending' },
+      { v: { ok: false, chef_enabled: true, chef_pending: 0 },
+        expect: 'ok' },
+    ],
+  },
+  errors: {
+    good: [{ v: { error: { code: 'BAD_STATE',
+      message: '这道菜现在不是待写状态' } }, code: 'BAD_STATE' }],
+    bad: [
+      { v: { error: 'oops' }, expect: '不是' },
+      { v: { error: { code: 'X', message: 'bad' } }, expect: '不是中文' },
+      { v: { error: { code: 'CONFLICT', message: '已被领取' } },
+        code: 'BAD_STATE', expect: '期望 BAD_STATE' },
+      { v: { message: '出错' }, expect: '不是' },
+    ],
+  },
+});
+console.log('fixtures 已生成');

@@ -1,0 +1,881 @@
+{
+  "good": [
+    {
+      "label": "正好 3 步",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      }
+    },
+    {
+      "label": "正好 12 步",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第4份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第5份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第6份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第7份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第8份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第9份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第10份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第11份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第12份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      }
+    },
+    {
+      "label": "caption 为空串",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": ""
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": ""
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": ""
+          }
+        ]
+      }
+    },
+    {
+      "label": "caption 正好 12 字",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "一二三四五六七八九十一二"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "一二三四五六七八九十一二"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "一二三四五六七八九十一二"
+          }
+        ]
+      }
+    },
+    {
+      "label": "heat/time 空串",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "",
+            "time": "",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "",
+            "time": "",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "",
+            "time": "",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第4份食材下锅，中火翻炒1分钟",
+            "heat": "",
+            "time": "",
+            "caption": "翻炒！"
+          }
+        ]
+      }
+    }
+  ],
+  "bad": [
+    {
+      "label": "不是对象",
+      "recipe": null,
+      "expect": "不是对象"
+    },
+    {
+      "label": "ingredients 缺失",
+      "recipe": {
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "ingredients 不是数组"
+    },
+    {
+      "label": "ingredients 为空",
+      "recipe": {
+        "ingredients": [],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "ingredients 为空"
+    },
+    {
+      "label": "食材缺 name",
+      "recipe": {
+        "ingredients": [
+          {
+            "amount": "3个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "ingredients[0].name"
+    },
+    {
+      "label": "食材 name 空白",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "  ",
+            "amount": "3个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "ingredients[0].name"
+    },
+    {
+      "label": "食材缺 amount",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "ingredients[1].amount"
+    },
+    {
+      "label": "食材 amount 空串",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "番茄",
+            "amount": ""
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "ingredients[0].amount"
+    },
+    {
+      "label": "食材是字符串",
+      "recipe": {
+        "ingredients": [
+          "鸡蛋"
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "ingredients[0] 不是对象"
+    },
+    {
+      "label": "steps 缺失",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ]
+      },
+      "expect": "steps 不是数组"
+    },
+    {
+      "label": "2 步",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "steps 数量 2"
+    },
+    {
+      "label": "13 步",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第4份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第5份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第6份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第7份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第8份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第9份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第10份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第11份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第12份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第13份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "steps 数量 13"
+    },
+    {
+      "label": "0 步",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": []
+      },
+      "expect": "steps 数量 0"
+    },
+    {
+      "label": "步骤缺 text",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "heat": "中火",
+            "caption": ""
+          }
+        ]
+      },
+      "expect": "steps[2].text"
+    },
+    {
+      "label": "步骤 text 空串",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "",
+            "caption": ""
+          },
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "steps[0].text"
+    },
+    {
+      "label": "步骤是纯字符串",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          "打蛋",
+          "炒",
+          "出锅"
+        ]
+      },
+      "expect": "steps[0] 不是对象"
+    },
+    {
+      "label": "步骤 text 非中文",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "Stir fry",
+            "caption": ""
+          }
+        ]
+      },
+      "expect": "不含中文"
+    },
+    {
+      "label": "缺 caption",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "洗菜"
+          },
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": "caption 缺失"
+    },
+    {
+      "label": "caption 13 字",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "一二三四五六七八九十一二三"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "一二三四五六七八九十一二三"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": "一二三四五六七八九十一二三"
+          }
+        ]
+      },
+      "expect": "caption 超过"
+    },
+    {
+      "label": "caption 是数字",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": 1
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": 1
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": "中火",
+            "time": "1分钟",
+            "caption": 1
+          }
+        ]
+      },
+      "expect": "caption 应为字符串"
+    },
+    {
+      "label": "heat 不是字符串",
+      "recipe": {
+        "ingredients": [
+          {
+            "name": "鸡蛋",
+            "amount": "3个"
+          },
+          {
+            "name": "番茄",
+            "amount": "2个"
+          }
+        ],
+        "steps": [
+          {
+            "text": "第1份食材下锅，中火翻炒1分钟",
+            "heat": null,
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第2份食材下锅，中火翻炒1分钟",
+            "heat": null,
+            "time": "1分钟",
+            "caption": "翻炒！"
+          },
+          {
+            "text": "第3份食材下锅，中火翻炒1分钟",
+            "heat": null,
+            "time": "1分钟",
+            "caption": "翻炒！"
+          }
+        ]
+      },
+      "expect": ".heat 应为字符串"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+// 回填 dish_photos.size（迁移 0004 之前上传的照片 size=0）。从当前照片存储读出每张照片的字节数写回 D1。
+// 只读写本地模拟数据，不联网。建议先停掉使用同一份数据的 wrangler dev。
+//   node scripts/backfill-photo-sizes [--store kv|d1|r2] [--persist-to .wrangler/state]
+import { getPlatformProxy } from "wrangler";
+import { join } from "node:path";
+
+const args = process.argv.slice(2);
+const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
+const store = opt("--store", "kv"), persist = opt("--persist-to", ".wrangler/state");
+const { env, dispose } = await getPlatformProxy({ persist: { path: join(persist, "v3") }, ...(store === "r2" ? { environment: "r2" } : {}) });
+const sizeOf = {
+  kv: async (k) => (await env.PHOTOS_KV.get(`photo:${k}`, "arrayBuffer"))?.byteLength ?? null,
+  r2: async (k) => (await env.PHOTOS.head(k))?.size ?? null,
+  d1: async (k) => (await env.DB.prepare("SELECT size FROM photo_blobs WHERE key=?").bind(k).first())?.size ?? null,
+}[store];
+let done = 0, missing = 0;
+try {
+  const rows = (await env.DB.prepare("SELECT id, r2_key FROM dish_photos WHERE size = 0").all()).results;
+  for (const r of rows) {
+    const n = await sizeOf(r.r2_key);
+    if (n == null) { missing++; console.warn(`  ${store} 里找不到：${r.r2_key}`); continue; }
+    await env.DB.prepare("UPDATE dish_photos SET size=? WHERE id=?").bind(n, r.id).run();
+    done++;
+  }
+  const t = await env.DB.prepare("SELECT COUNT(*) n, COALESCE(SUM(size),0) b FROM dish_photos").first();
+  console.log(`回填完成：${done} 张，找不到 ${missing} 张。现在共 ${t.n} 张，${t.b} 字节。`);
+} finally { await dispose(); }
+process.exit(missing ? 2 : 0);

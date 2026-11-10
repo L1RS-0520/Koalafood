@@ -1,0 +1,34 @@
+考拉食堂接口测试基线（2026-11-09，America/Toronto）
+命令（app/worker 下）：STRICT=1 node test/api.test.mjs
+对象：http://localhost:8787（wrangler dev，PHOTO_STORE=kv）
+不含任何密钥 / cookie。
+
+[run A] 第一次 STRICT 运行（服务端当时正在改动，后续自行恢复）
+  合计 216：PASS 112  FAIL 53  SKIP 51  WARN 0   exit=1   用时≈1.3s
+  原因：所有带照片的 POST /api/kitchen/dishes 返回
+        500 INTERNAL「服务器开小差了，请稍后再试」，依赖建菜的用例连带失败/跳过。
+  health.photo_store=kv ✔；清理 0 道；已有 7 道菜未改动 ✔；chef_enabled=true ✔
+
+[run B] 正式基线（加入 storage / quota 两块后）
+  合计 222：PASS 221  FAIL 0  SKIP 1  WARN 0   exit=0   用时 5.8s
+  SKIP 1 = quota 块（未设置 ALT_BASE）
+  storage 块（GET /api/kitchen/storage）4 条全部执行并通过
+  health.photo_store=kv ✔（EXPECT_PHOTO_STORE 可覆盖）
+  清理本次创建 62 道 ✔；已有 7 道菜（厨驼预留）未改动 ✔；chef_enabled=true ✔
+  结束后 health：orphan_photos=0
+离线单测：validators.test.mjs 68/68 PASS
+
+23:06 的 500 疑似切换时产生，复跑 3 次未复现
+[复跑 第 1 组 · 23:11，文案覆盖前]（STRICT=1，8787，HTTP 5xx 全程 0 次）
+  run1 23:11:25  合计 222：PASS 221 FAIL 0 SKIP 1 WARN 0  exit=0  5.9s
+  run2 23:11:30  合计 222：PASS 221 FAIL 0 SKIP 1 WARN 0  exit=0  5.9s
+  run3 23:11:36  合计 222：PASS 221 FAIL 0 SKIP 1 WARN 0  exit=0  5.9s
+[复跑 第 2 组 · 23:12，新文案 + 双超用例 + 用量百分比校验]（HTTP 5xx 全程 0 次）
+  run1 23:12:49  合计 222：PASS 221 FAIL 0 SKIP 1 WARN 0  exit=0  5.8s
+         daily_ops.used 680→850 / 1000
+  run2 23:12:55  合计 222：PASS 221 FAIL 0 SKIP 1 WARN 0  exit=0  5.7s
+         daily_ops.used 850→1000 / 1000，orphan_photos 0→20（额度用完后删除的照片记为孤儿，属约定行为）
+  run3 23:13:01  合计 222：PASS 115 FAIL 55 SKIP 52 WARN 0  exit=1  1.3s
+         8787 当日 KV 写入额度用完：所有上传返回 429 STORAGE_QUOTA
+         「今天食堂的照片柜塞满啦，明天再来传吧～」（不是 500）；每跑一轮约消耗 150–170 次写入/删除
+  每轮之后：清理通过、7 道已有菜未改动、chef_enabled=true、photo_store=kv
