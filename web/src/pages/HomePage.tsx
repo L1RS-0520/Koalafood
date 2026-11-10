@@ -147,7 +147,7 @@ export function HomePage() {
             <StatePanel
               pose="taste"
               title={`${category}还没有菜`}
-              text="做了好吃的？拍张照传上来吧～"
+              text="换个分类看看，或者给这里添一道。"
               action={
                 <Link className="btn btn--primary" to={`/kitchen/upload?category=${encodeURIComponent(category)}`}>
                   <Icon name="plus" size={18} />
