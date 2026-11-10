@@ -1,7 +1,7 @@
 // P3 菜品详情：菜名 → 相册 → 分类/备注 → 食材 → 步骤漫画；按状态显示提示和操作（访客只看正式内容）
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, ApiError, CHEF_STATUS, isEmptyContent, LIMITS, POLL_MS, type Dish, type RecipeContent } from '../api'
+import { api, ApiError, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, POLL_MS, type Dish, type RecipeContent } from '../api'
 import { ChefLlama, ChefWriting, Dots } from '../components/ChefLlama'
 import { Gallery } from '../components/Gallery'
 import { Icon } from '../components/Icon'
@@ -136,7 +136,7 @@ export function DishPage() {
   } else if (isDraft) {
     body = (
       <>
-        <DraftReview dish={dish} />
+        <DraftReview dish={dish} chefOn={app.chefEnabled} />
         {hasOfficial && (
           <details className="official-fold">
             <summary>
@@ -224,13 +224,13 @@ export function DishPage() {
       </article>
 
       {owner && (
-        <div className={cx('action-bar', isDraft && 'action-bar--grid')}>
+        <div className={cx('action-bar', isDraft && 'action-bar--grid', isDraft && !app.chefEnabled && 'action-bar--three')}>
           {isDraft ? (
             <>
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => run('confirm', () => api.confirmDraft(dish.id), '确认好啦，正式上菜！')}
+                onClick={() => run('confirm', () => api.confirmDraft(dish.id), CONFIRMED_TEXT)}
                 disabled={!!busy || draftEmpty}
                 title={draftEmpty ? '空草稿不能直接确认' : undefined}
               >
@@ -241,15 +241,11 @@ export function DishPage() {
                 <Icon name="pencil" size={18} />
                 {draftEmpty ? '我自己写' : '修改后确认'}
               </button>
-              {app.chefEnabled ? (
+              {/* 厨驼关闭时只剩 确认 / 修改后确认 / 不要了 三个键（2+1 排，设计 §5.9） */}
+              {app.chefEnabled && (
                 <button type="button" className="btn btn--ghost" onClick={() => (setRequest(''), setDlg('rewrite'))} disabled={!!busy}>
                   <Icon name="refresh" size={18} />
                   让厨驼重写
-                </button>
-              ) : (
-                <button type="button" className="btn btn--ghost btn--danger-text" onClick={() => setDlg('delete')} disabled={!!busy}>
-                  <Icon name="trash" size={18} />
-                  删除这道菜
                 </button>
               )}
               <button type="button" className="btn btn--ghost btn--danger-text" onClick={() => setDlg('discard')} disabled={!!busy}>
@@ -323,13 +319,20 @@ export function DishPage() {
 
       <Confirm
         open={dlg === 'discard'}
-        title="这份草稿不要了？"
-        body={hasOfficial ? '草稿会被扔掉，现在的正式菜谱保持不变。' : '草稿会被扔掉，这道菜会先显示“还没写步骤”，之后可以自己写或再找厨驼。'}
+        title="不要这份草稿了？"
+        body={
+          hasOfficial
+            ? '草稿会被丢掉，原来的正式内容不变。'
+            : app.chefEnabled
+              ? '草稿会被丢掉，这道菜会先显示“还没写步骤”，之后可以自己写或再找厨驼。'
+              : '草稿会被丢掉，这道菜会先显示“还没写步骤”，之后可以自己写。'
+        }
         okText="不要了"
+        cancelText="再想想"
         danger
         busy={busy === 'discard'}
         art={<ChefLlama pose="done" size={72} animated={false} />}
-        onOk={() => run('discard', () => api.discardDraft(dish.id), '草稿已扔掉')}
+        onOk={() => run('discard', () => api.discardDraft(dish.id), '草稿已丢掉')}
         onCancel={() => setDlg(null)}
       />
 
@@ -376,8 +379,8 @@ function ChefAtWork({ on, requested }: { on: boolean; requested: string | null }
           </>
         ) : (
           <>
-            <h2>厨驼下班啦</h2>
-            <p>「找厨驼写菜谱」已经关掉，这道菜可以自己写。</p>
+            <h2>厨驼已经休息啦</h2>
+            <p>这道菜还没写，可以改为自己写。</p>
           </>
         )}
       </div>
@@ -391,7 +394,7 @@ function RewritingBanner({ on, requested, editHref }: { on: boolean; requested: 
     <div className={cx('rewrite-banner', !on && 'rewrite-banner--off')} role="status">
       <ChefLlama pose={on ? 'write' : 'off'} size={54} animated={on} />
       <div>
-        <b>{on ? '厨驼正在重写…' : '重写暂停了（厨驼已下班）'}</b>
+        <b>{on ? '厨驼正在重写…' : '重写暂停了（厨驼已经休息啦）'}</b>
         <span>
           {on ? '下面是现在的版本，新草稿写好后等你确认。' : '下面是现在的版本，也可以直接自己改。'}
           {requested && on && ` 要求：${requested}`}
@@ -426,11 +429,15 @@ function ChefMessage({ dish }: { dish: Dish }) {
 }
 
 /** 草稿预览（绿色虚线框）；空草稿给出下一步提示 */
-function DraftReview({ dish }: { dish: Dish }) {
+function DraftReview({ dish, chefOn }: { dish: Dish; chefOn: boolean }) {
   const draft = dish.draft
   const empty = !draft || isEmptyContent(draft)
   if (empty) {
-    return <p className="draft-empty-text">这份草稿是空的：可以「让厨驼重写」并补充要求，或者点「我自己写」。</p>
+    return (
+      <p className="draft-empty-text">
+        {chefOn ? '这份草稿是空的：可以「让厨驼重写」并补充要求，或者点「我自己写」。' : '这份草稿是空的：可以点「我自己写」，或者「不要了」。'}
+      </p>
+    )
   }
   return (
     <section className="draft-frame" aria-label="草稿预览">

@@ -1,7 +1,7 @@
 // P4 编辑页（仅大王）：所有字段 + 照片增删排序 + 食材步骤编辑区；?confirm=1 为「修改后确认」草稿
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, ApiError, CHEF_STATUS, isEmptyContent, LIMITS, type Dish, type RecipeContent } from '../api'
+import { api, ApiError, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, type Dish, type RecipeContent } from '../api'
 import { BasicFields, validateBasics, type BasicErrors, type Basics } from '../components/BasicFields'
 import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
@@ -185,7 +185,7 @@ export function EditPage() {
       const c = cleanContent(content)
       if (confirmMode) {
         await api.confirmDraft(dish.id, c)
-        app.toast('改好并确认啦，正式上菜！', 'ok')
+        app.toast(CONFIRMED_TEXT, 'ok')
       } else {
         await api.updateDish(dish.id, { name: basics.name.trim(), category: basics.category, note: basics.note.trim() || null, ...c })
         app.toast('保存好啦', 'ok')

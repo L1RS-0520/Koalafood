@@ -24,7 +24,7 @@ function KitchenClosed() {
       <TopBar title="后厨" />
       <section className="kitchen-closed">
         <div className="kitchen-door" aria-hidden="true">
-          <span className="kitchen-sign">STAFF ONLY</span>
+          <span className="kitchen-sign">后厨重地</span>
           <Koala pose="point" size={110} />
           <ChefLlama pose="done" size={84} animated={false} />
         </div>

@@ -38,7 +38,6 @@
   --font-display: 'ZCOOL KuaiLe', 'Noto Sans SC', 'Noto Sans CJK SC', 'PingFang SC', sans-serif;
   --font-body: 'Noto Sans SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', system-ui, sans-serif;
-  --font-latin: 'Bangers', 'ZCOOL KuaiLe', sans-serif; /* 只用于英文拟声词 */
   --font-num: 'Baloo 2', 'Noto Sans SC', 'Noto Sans CJK SC', sans-serif;
 
   /* —— 字号阶梯（字号 / 行高）—— */

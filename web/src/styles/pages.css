@@ -861,7 +861,7 @@
   line-height: var(--lh-h2);
 }
 .sec-sfx {
-  font-family: var(--font-latin);
+  font-family: var(--font-display); /* round-2：拟声词改中文（AC19），用 ZCOOL，不加粗 */
   font-size: 17px;
   letter-spacing: 1px;
   color: var(--primary);
@@ -1377,6 +1377,18 @@
 .action-bar--grid .btn {
   max-width: none;
 }
+/* 厨驼关闭时草稿页只有 3 个键：2+1 排，第 3 个（不要了）占满一行（设计 §5.9） */
+.action-bar--three > .btn:nth-child(3) {
+  grid-column: 1 / -1;
+}
+@media (min-width: 640px) {
+  .action-bar--three {
+    grid-template-columns: repeat(3, minmax(0, 200px));
+  }
+  .action-bar--three > .btn:nth-child(3) {
+    grid-column: auto;
+  }
+}
 .action-bar .btn--primary:disabled {
   --btn-bg: #e6e4ee;
   color: #8a8496;
@@ -1515,7 +1527,7 @@
   border: var(--line-md);
   border-radius: 6px;
   background: #fff;
-  font-family: var(--font-latin);
+  font-family: var(--font-display);
   font-size: 18px;
   letter-spacing: 1px;
   transform: translateX(-50%) rotate(-4deg);
