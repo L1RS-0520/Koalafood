@@ -10,7 +10,7 @@ import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/
 import { cleanContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
 import { BusyOverlay, LeaveGuard, PageLoading, StatePanel, TopBar } from '../components/ui'
 import { useApp } from '../lib/app'
-import { diffPatch, touchesContent } from '../lib/editPatch'
+import { diffPatch, metaErrors, touchesContent } from '../lib/editPatch'
 import { compressAll } from '../lib/compress'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { photoIndexOf, tooLargeText } from '../lib/util'
@@ -182,6 +182,11 @@ export function EditPage() {
     if (Object.keys(e).length) {
       document.getElementById(e.name ? 'f-name' : e.category ? 'f-category' : 'f-note')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       app.toast('还有必填项没填好', 'err')
+      return
+    }
+    const metaErr = metaErrors(content)
+    if (metaErr.length) {
+      app.toast(metaErr[0], 'err')
       return
     }
     setSaving(true)

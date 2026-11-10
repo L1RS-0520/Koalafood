@@ -101,14 +101,14 @@ export function RecipeEditor({
             <Icon name="users" size={16} />
             份量
           </span>
-          <input value={value.servings ?? ''} placeholder="如 2人份" maxLength={20} onChange={(e) => upd({ servings: e.target.value })} />
+          <input value={value.servings ?? ''} placeholder="如 2人份" maxLength={LIMITS.servingsMax} onChange={(e) => upd({ servings: e.target.value })} />
         </label>
         <label className="mini-field">
           <span>
             <Icon name="clock" size={16} />
             总时长
           </span>
-          <input value={value.total_time ?? ''} placeholder="如 20分钟" maxLength={20} onChange={(e) => upd({ total_time: e.target.value })} />
+          <input value={value.total_time ?? ''} placeholder="如 20分钟" maxLength={LIMITS.totalTimeMax} onChange={(e) => upd({ total_time: e.target.value })} />
         </label>
       </div>
 

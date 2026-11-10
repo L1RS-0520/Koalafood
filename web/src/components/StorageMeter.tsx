@@ -24,7 +24,9 @@ export function useStorage(enabled: boolean) {
   return [s, reload] as const
 }
 
-const opsPct = (s: Storage) => (s.daily_ops.limit > 0 ? (s.daily_ops.used / s.daily_ops.limit) * 100 : 0)
+/** 当天次数只对 KV 存储有意义（约定 §3.5：别的存储后端也返回 limit=1000 但不拦，后端审查 P2-9） */
+const opsOn = (s: Storage) => s.store === 'kv' && s.daily_ops.limit > 0
+const opsPct = (s: Storage) => (opsOn(s) ? (s.daily_ops.used / s.daily_ops.limit) * 100 : 0)
 
 /** 容量黄/红提示 + 当天上传次数提醒（ok 且次数正常时什么都不显示） */
 export function StorageWarn({ s }: { s: Storage | null }) {
@@ -74,7 +76,7 @@ export function StorageMeter({ s }: { s: Storage | null }) {
           已用 {mb(c.used_bytes)} MB / {mb(c.limit_bytes)} MB，大约还能传 <b>{c.photos_left.toLocaleString('en-US')}</b> 张
         </p>
         <p className="storage-sub">
-          已存 {s.photo_count} 张照片{s.daily_ops.limit > 0 && ` · 今天已传 ${s.daily_ops.used}/${s.daily_ops.limit} 次`}
+          已存 {s.photo_count} 张照片{opsOn(s) && ` · 今天已传 ${s.daily_ops.used}/${s.daily_ops.limit} 次`}
         </p>
       </section>
       <StorageWarn s={s} />

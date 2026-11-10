@@ -14,6 +14,7 @@ import { useApp } from '../lib/app'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { clearDraft, hasText, loadPhotos, loadText, savePhotos, saveText } from '../lib/uploadDraft'
 import { compressAll } from '../lib/compress'
+import { metaErrors } from '../lib/editPatch'
 import { cx, photoIndexOf, tooLargeText } from '../lib/util'
 
 interface LocalPhoto extends PhotoItem {
@@ -165,6 +166,12 @@ export function UploadPage() {
     }
     if (progress) {
       app.toast('照片还在压缩，稍等一下', 'info')
+      return
+    }
+    // 份量 / 总时长最多 20 字（自己写时才有）
+    const metaErr = effMode === CREATE_MODE.manual ? metaErrors(content) : []
+    if (metaErr.length) {
+      app.toast(metaErr[0], 'err')
       return
     }
     setBusy(true)

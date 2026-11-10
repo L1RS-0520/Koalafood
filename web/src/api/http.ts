@@ -21,10 +21,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const err = (body as { error?: { code?: string; message?: string } } | null)?.error
     const fallback: Record<number, string> = {
       401: '这里是后厨，大王登录后才能操作',
-      403: '找厨驼写已经关掉了，可以在设置里打开',
+      403: '厨驼已在设置里关闭，请先打开或改为自己写',
       404: '这道菜找不到了，可能已经被删掉',
       409: '这道菜的状态刚刚变了，刷新一下再试',
-      413: '照片太大啦，单张不能超过 1MB',
+      413: '照片太大了，上限 1,024KB', // = tooLargeText(null)，和约定 §2 同格式
       429: '今天食堂的照片柜塞满啦，明天再来传吧～',
       507: '照片柜满啦，删掉一些旧照片才能继续上传～',
       415: '只支持 jpg、png、webp 格式的照片',

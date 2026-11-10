@@ -38,6 +38,16 @@ const mock = await page.evaluate(async () => {
   const c2 = { ...c, steps: [...c.steps, { text: '撒葱花', heat: '', time: '' }] }
   const patch = diffPatch({ basics: { name: d.name, category: d.category, note: d.note }, content: c }, { name: d.name, category: d.category, note: d.note }, c2)
   out.content = { patch, after: await mockApi.updateDish('seed-tomato', patch) }
+  // v2.3.3：份量 / 总时长超过 20 字 → 400 VALIDATION（PATCH 和 POST）
+  const err = async (fn) => { try { await fn(); return null } catch (e) { return { code: e.code, status: e.status, message: e.message } } }
+  out.patch21 = await err(() => mockApi.updateDish('seed-tomato', { servings: '一'.repeat(21) }))
+  const blob = await (await fetch('/src/assets/logo.webp')).blob()
+  out.post21 = await err(() => mockApi.createDish({ name: '超长测试', category: '其他', note: '', mode: 'manual', photos: [new File([blob], 'a.webp', { type: 'image/webp' })], content: { ingredients: [], steps: [], tips: [], servings: null, total_time: '一'.repeat(21) } }))
+  // v2.3.3：访客不返回 chef_requested_at
+  out.ownerHas = 'chef_requested_at' in (await mockApi.getDish('seed-mango'))
+  localStorage.setItem('koala-canteen:mock:can_edit', '0')
+  out.visitorHas = 'chef_requested_at' in (await mockApi.getDish('seed-mango'))
+  localStorage.removeItem('koala-canteen:mock:can_edit')
   return out
 })
 for (const [id, label] of [['seed-tomato', '已确认的厨驼菜谱'], ['seed-mango', '待写'], ['seed-pork', '草稿待确认']]) {
@@ -47,6 +57,9 @@ for (const [id, label] of [['seed-tomato', '已确认的厨驼菜谱'], ['seed-m
   rec(same(pick(after), pick(before)) && same(after.draft, before.draft), `mock ${label}：菜谱内容${before.draft ? '和草稿' : ''}不变`)
 }
 rec(mock.content.after.source === 'manual' && mock.content.after.chef_status === 'confirmed' && same(Object.keys(mock.content.patch), ['steps']), 'mock 改了步骤 → 只发 steps，变成手写并确认')
+rec(mock.patch21?.status === 400 && mock.patch21?.code === 'VALIDATION', 'mock PATCH 份量 21 字 → 400 VALIDATION', mock.patch21?.message)
+rec(mock.post21?.status === 400 && mock.post21?.code === 'VALIDATION', 'mock POST（自己写）总时长 21 字 → 400 VALIDATION', mock.post21?.message)
+rec(mock.ownerHas === true && mock.visitorHas === false, 'mock 访客不返回 chef_requested_at（大王照常有）', `大王 ${mock.ownerHas} / 访客 ${mock.visitorHas}`)
 await browser.close()
 
 // —— 2. 真实接口（可选） ——

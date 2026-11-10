@@ -3,7 +3,8 @@
 // 开发开关（localStorage）：koala-canteen:mock:can_edit = "0" 切访客视角；koala-canteen:mock:chef-delay 改出稿时间（毫秒）；
 // koala-canteen:mock:storage-used 覆盖已用字节（≥996147200 时上传返回 507 STORAGE_FULL）；koala-canteen:mock:ops-today 覆盖当天写入次数（上限 1000，≥1000 时上传/追加照片返回 429）。
 // 菜名含「塞满」→ 429 STORAGE_QUOTA；含「超大」→ 413 TOO_LARGE（模拟第 1 张 1,030KB）。
-import { touchesContent } from '../lib/editPatch'
+import { metaErrors, touchesContent } from '../lib/editPatch'
+import { tooLargeText } from '../lib/util'
 import { CHEF_STATUS, LIMITS } from './contract'
 import { mockDraft } from './mockChef'
 import { makeSeed, SEED_PHOTOS, type MockDish, type MockPhoto } from './mockSeed'
@@ -74,7 +75,8 @@ function toDish(d: MockDish): Dish {
     ...d,
     photos,
     photo_url: photos[0]?.url ?? '',
-    // v2.3 隐私：未登录不返回 draft / requested_note
+    // v2.3 隐私：未登录不返回 draft / requested_note；v2.3.3 起 chef_requested_at 也不返回
+    chef_requested_at: visible ? d.chef_requested_at : undefined,
     draft: visible ? d.draft : null,
     requested_note: visible ? d.requested_note : null,
     chef_message: visible ? (d.draft?.chef_message ?? null) : null,
@@ -93,32 +95,37 @@ function requireLogin() {
   if (!canEdit()) throw new ApiError('UNAUTHORIZED', '这里是后厨，大王登录后才能操作', 401)
 }
 function requireChef(s: Store) {
-  if (!s.settings.chef_enabled) throw new ApiError('CHEF_DISABLED', '找厨驼写已经关掉了，可以在设置里打开', 403)
+  if (!s.settings.chef_enabled) throw new ApiError('CHEF_DISABLED', '厨驼已在设置里关闭，请先打开或改为自己写', 403)
 }
 
 function checkPhotos(files: File[], existing = 0) {
   if (files.length + existing < 1) throw new ApiError('VALIDATION', '至少要有 1 张照片', 400)
   if (files.length + existing > LIMITS.photosMax) throw new ApiError('VALIDATION', `最多 ${LIMITS.photosMax} 张照片`, 400)
-  for (const f of files) {
+  files.forEach((f, i) => {
     if (!(LIMITS.photoTypes as readonly string[]).includes(f.type))
       throw new ApiError('BAD_TYPE', '只支持 jpg、png、webp 格式的照片', 415)
-    if (f.size > LIMITS.uploadMaxBytes) throw new ApiError('TOO_LARGE', '照片太大啦，单张不能超过 1MB', 413)
-  }
+    // 和后端同一句（后端审查 P2-6）
+    if (f.size > LIMITS.uploadMaxBytes) throw new ApiError('TOO_LARGE', `第 ${i + 1} 张${tooLargeText(f.size)}`, 413)
+  })
 }
 
-/** 写照片前的额度判断：先容量（507）再当天次数（429），都在写入前，不留半条 */
-async function storageGate(name: string) {
-  if (Number(localStorage.getItem(STORAGE_KEY)) >= 996_147_200) {
+/**
+ * 写照片前的额度判断，和真实接口同规则（后端审查 P2-5）：已用 + 本次总字节 > 上限 → 507；
+ * 已用次数 + 本次张数 > 上限 → 429；两个都超时先判 507。都在写入前，不留半条。
+ */
+async function storageGate(name: string, files: File[] = []) {
+  const bytes = files.reduce((n, f) => n + f.size, 0)
+  if (Number(localStorage.getItem(STORAGE_KEY)) + bytes > 996_147_200) {
     await sleep(400)
     throw new ApiError('STORAGE_FULL', '照片柜满啦，删掉一些旧照片才能继续上传～', 507)
   }
-  if (name.includes('塞满') || Number(localStorage.getItem(OPS_KEY)) >= 1000) {
+  if (name.includes('塞满') || Number(localStorage.getItem(OPS_KEY)) + Math.max(1, files.length) > 1000) {
     await sleep(400)
     throw new ApiError('STORAGE_QUOTA', '今天食堂的照片柜塞满啦，明天再来传吧～', 429)
   }
   if (name.includes('超大')) {
     await sleep(300)
-    throw new ApiError('TOO_LARGE', '第 1 张照片超过 1MB', 413)
+    throw new ApiError('TOO_LARGE', `第 1 张${tooLargeText(1_054_720)}`, 413)
   }
 }
 
@@ -145,6 +152,12 @@ function validateText(name: string, category: string, note?: string | null) {
   if ([...name.trim()].length > LIMITS.nameMax) throw new ApiError('VALIDATION', `菜名最多 ${LIMITS.nameMax} 个字`, 400)
   if (!(CATEGORIES as readonly string[]).includes(category)) throw new ApiError('VALIDATION', '请选择分类', 400)
   if (note && [...note].length > LIMITS.noteMax) throw new ApiError('VALIDATION', `备注最多 ${LIMITS.noteMax} 个字`, 400)
+}
+
+/** 份量 / 总时长超过 20 字 → 400（和后端 v2.3.3 一致） */
+function validateMeta(c: { servings?: string | null; total_time?: string | null }) {
+  const errs = metaErrors({ servings: c.servings ?? null, total_time: c.total_time ?? null })
+  if (errs.length) throw new ApiError('VALIDATION', errs.join('；'), 400)
 }
 
 const emptyContent = (): RecipeContent => ({ ingredients: [], steps: [], tips: [], servings: null, total_time: null })
@@ -200,9 +213,10 @@ export const mockApi: Api = {
     requireLogin()
     const s = load()
     validateText(input.name, input.category, input.note)
+    if (input.mode === 'manual' && input.content) validateMeta(input.content)
     checkPhotos(input.photos)
     if (input.mode === 'chef') requireChef(s)
-    await storageGate(input.name)
+    await storageGate(input.name, input.photos)
     const refs = await Promise.all(input.photos.map(compress))
     await sleep(700)
     const t = now()
@@ -236,6 +250,7 @@ export const mockApi: Api = {
     const category = patch.category ?? d.category
     const note = patch.note === undefined ? d.note : patch.note
     validateText(name, category, note)
+    validateMeta(patch)
     Object.assign(d, {
       name: name.trim(),
       category,
@@ -265,7 +280,7 @@ export const mockApi: Api = {
     const s = load()
     const d = find(s, id)
     checkPhotos(files, d.photos.length)
-    await storageGate(d.name)
+    await storageGate(d.name, files)
     const refs = await Promise.all(files.map(compress))
     await lag()
     d.photos.push(...refs.map((ref) => ({ id: uid(), ref })))
@@ -369,7 +384,7 @@ export const mockApi: Api = {
     const limit = 996_147_200
     const percent = Math.round((used / limit) * 1000) / 10
     return normStorage({
-      store: 'mock',
+      store: 'kv', // mock 模拟默认的 KV 存储（次数提示只对 kv 显示）
       photo_count: photos.length,
       capacity: {
         used_bytes: used,

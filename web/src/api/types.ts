@@ -54,7 +54,8 @@ export interface Dish extends RecipeContent {
   chef_message: string | null
   /** 最近一次交给厨驼时附带的要求 */
   requested_note: string | null
-  chef_requested_at: string | null
+  /** 未登录时后端不返回（v2.3.3），缺了按没有处理 */
+  chef_requested_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -65,8 +66,8 @@ export interface DishSummary {
   category: string
   photo_url: string
   photo_count: number
-  /** 可选：后端若在列表里带上总时长，卡片显示 */
-  total_time?: string | null
+  /** v2.3.2 起列表一定返回：只有已确认的值，没有为 null。卡片先不显示（待大王决定） */
+  total_time: string | null
   chef_status: ChefStatus
   source: DishSource
   created_at: string
@@ -76,6 +77,9 @@ export interface Health {
   ok: boolean
   chef_enabled?: boolean
   chef_pending?: number
+  chef_mock?: boolean
+  photo_store?: string
+  orphan_photos?: number
   /** 前端 mock 自己加的标记 */
   mock?: boolean
 }
@@ -122,7 +126,7 @@ export interface NewDishInput {
 export type DishPatch = Partial<Pick<Dish, 'name' | 'category' | 'note'> & RecipeContent>
 
 export class ApiError extends Error {
-  /** VALIDATION / UNAUTHORIZED / CHEF_DISABLED / NOT_FOUND / CONFLICT / BAD_STATE / TOO_LARGE / BAD_TYPE / INTERNAL / NETWORK(前端) */
+  /** VALIDATION / UNAUTHORIZED / CHEF_DISABLED / NOT_FOUND / CONFLICT / BAD_STATE / TOO_LARGE / BAD_TYPE / STORAGE_QUOTA / STORAGE_FULL / INTERNAL / NETWORK(前端) */
   code: string
   status: number
   constructor(code: string, message: string, status = 0) {

@@ -49,3 +49,10 @@ test('五个内容键都能识别', () => {
   const c = { ...content(), servings: '3人份', total_time: null }
   assert.deepEqual(Object.keys(diffPatch(init(), init().basics, c)).sort(), ['servings', 'total_time'])
 })
+
+test('份量 / 总时长最多 20 字（按字符数），和后端同一句', async () => {
+  const { metaErrors } = await import('../src/lib/editPatch.ts')
+  assert.deepEqual(metaErrors({ servings: '2人份', total_time: '一'.repeat(20) }), [])
+  assert.deepEqual(metaErrors({ servings: '😀'.repeat(21), total_time: null }), ['份量（servings）最多 20 个字，现在 21 个字'])
+  assert.deepEqual(metaErrors({ servings: null, total_time: '一'.repeat(25) }), ['总时长（total_time）最多 20 个字，现在 25 个字'])
+})

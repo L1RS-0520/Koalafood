@@ -49,5 +49,18 @@ export function diffPatch(initial: { basics: BasicsLike; content: RecipeContent 
   return patch
 }
 
+/** 份量 / 总时长超长：和后端同一句（worker draft.ts optText） */
+export function metaErrors(c: Pick<RecipeContent, 'servings' | 'total_time'>): string[] {
+  const out: string[] = []
+  const chk = (key: 'servings' | 'total_time', label: string, max: number) => {
+    const s = c[key]?.trim()
+    const n = s ? [...s].length : 0
+    if (n > max) out.push(`${label}（${key}）最多 ${max} 个字，现在 ${n} 个字`)
+  }
+  chk('servings', '份量', LIMITS.servingsMax)
+  chk('total_time', '总时长', LIMITS.totalTimeMax)
+  return out
+}
+
 /** PATCH 里有没有内容键（有就会作废厨驼任务、改成手写） */
 export const touchesContent = (patch: object) => CONTENT_KEYS.some((k) => k in patch)

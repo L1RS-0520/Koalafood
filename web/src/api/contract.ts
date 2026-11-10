@@ -1,9 +1,9 @@
 // ⚠️ 接口字段名与取值集中在这里（后端可能还会微调，只改这个文件）
-// 依据：app/docs/接口约定.md 末尾「v2.1 最终定稿」（唯一准绳）+ 需求文档 v2.0 第 4 节
+// 依据：app/docs/接口约定.md 开头的「v2.3.2 当前有效版」（后端审查 P2-3）
 
 /** 菜品状态字段名（后端 DishSummary / Dish 上） */
 export const STATUS_FIELD = 'chef_status'
-/** 兼容读取的旧字段名（v2 草案曾用 recipe_status，D1 表里叫 status） */
+/** 兼容读取的旧字段名（v2 草案曾用 recipe_status，D1 表里叫 status）。后端现在只返回 chef_status，只为兼容旧 mock 数据保留 */
 export const STATUS_FIELD_FALLBACKS = ['recipe_status', 'status'] as const
 
 /** 菜品状态取值 */
@@ -17,7 +17,7 @@ export const CHEF_STATUS = {
 } as const
 export type ChefStatus = (typeof CHEF_STATUS)[keyof typeof CHEF_STATUS]
 
-/** 旧取值 → 新取值（兼容 v2 草案） */
+/** 旧取值 → 新取值（兼容 v2 草案）。后端只会返回 pending/draft/confirmed，其余只为兼容旧 mock 数据保留 */
 export const STATUS_ALIASES: Record<string, ChefStatus> = {
   pending: 'pending',
   waiting: 'pending',
@@ -98,6 +98,9 @@ export const LIMITS = {
   uploadMaxBytes: 1024 * 1024,
   photosMax: 9,
   captionMax: 12,
+  /** 份量 / 总时长最多 20 个字（按字符数；后端超过返回 400 VALIDATION，v2.3.3） */
+  servingsMax: 20,
+  totalTimeMax: 20,
 } as const
 
 /** 照片柜用量（GET /api/kitchen/storage）：档位直接用后端的 capacity.level */
