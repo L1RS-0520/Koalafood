@@ -41,6 +41,8 @@ const mock = await page.evaluate(async () => {
   // v2.3.3：份量 / 总时长超过 20 字 → 400 VALIDATION（PATCH 和 POST）
   const err = async (fn) => { try { await fn(); return null } catch (e) { return { code: e.code, status: e.status, message: e.message } } }
   out.patch21 = await err(() => mockApi.updateDish('seed-tomato', { servings: '一'.repeat(21) }))
+  // v2.3.3：只写了编号 → 400 VALIDATION + details {field, index, reason:'only_number'}
+  out.onlyNum = await (async () => { try { await mockApi.updateDish('seed-tomato', { steps: [{ text: '洗菜', heat: '', time: '' }, { text: '2.', heat: '', time: '' }] }); return null } catch (e) { return { code: e.code, status: e.status, message: e.message, details: e.details } } })()
   const blob = await (await fetch('/src/assets/logo.webp')).blob()
   out.post21 = await err(() => mockApi.createDish({ name: '超长测试', category: '其他', note: '', mode: 'manual', photos: [new File([blob], 'a.webp', { type: 'image/webp' })], content: { ingredients: [], steps: [], tips: [], servings: null, total_time: '一'.repeat(21) } }))
   // v2.3.3：访客不返回 chef_requested_at
@@ -59,6 +61,7 @@ for (const [id, label] of [['seed-tomato', '已确认的厨驼菜谱'], ['seed-m
 rec(mock.content.after.source === 'manual' && mock.content.after.chef_status === 'confirmed' && same(Object.keys(mock.content.patch), ['steps']), 'mock 改了步骤 → 只发 steps，变成手写并确认')
 rec(mock.patch21?.status === 400 && mock.patch21?.code === 'VALIDATION', 'mock PATCH 份量 21 字 → 400 VALIDATION', mock.patch21?.message)
 rec(mock.post21?.status === 400 && mock.post21?.code === 'VALIDATION', 'mock POST（自己写）总时长 21 字 → 400 VALIDATION', mock.post21?.message)
+rec(mock.onlyNum?.status === 400 && mock.onlyNum?.details?.field === 'steps' && mock.onlyNum?.details?.index === 1 && mock.onlyNum?.details?.reason === 'only_number' && mock.onlyNum?.message === '第 2 步只写了编号，补上做法或删掉这一步', 'mock PATCH 只写编号的步骤 → 400 + details', JSON.stringify(mock.onlyNum))
 rec(mock.ownerHas === true && mock.visitorHas === false, 'mock 访客不返回 chef_requested_at（大王照常有）', `大王 ${mock.ownerHas} / 访客 ${mock.visitorHas}`)
 await browser.close()
 

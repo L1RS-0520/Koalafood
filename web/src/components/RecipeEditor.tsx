@@ -1,10 +1,34 @@
 // 菜谱编辑区：快速模式（一行一条的大文本框）/ 逐条模式（增删行、上下移动、火候时长对白）
 import { useEffect, useRef, useState } from 'react'
 import { LIMITS, splitIngredientLine, type Ingredient, type RecipeContent, type Step } from '../api'
+import type { IssueField } from '../lib/editPatch'
 import { cx } from '../lib/util'
 import { Icon } from './Icon'
 
 export type EditorMode = 'quick' | 'fine'
+
+/** 后端逐条校验错误，index 是编辑区里的原始行下标（已从提交下标换算过） */
+export interface EditorIssue {
+  field: IssueField
+  index: number
+  message: string
+}
+
+const ISSUE_LABEL: Record<IssueField, (i: number) => string> = {
+  ingredients: (i) => `第 ${i + 1} 样食材名称`,
+  steps: (i) => `第 ${i + 1} 步内容`,
+  tips: (i) => `第 ${i + 1} 条小贴士`,
+}
+
+/** 出错那一条下面一直显示的说明（改动那一栏之前不消失） */
+function IssueNote({ issue }: { issue: EditorIssue }) {
+  return (
+    <p className="row-err" id={`issue-${issue.field}`} role="alert">
+      <Icon name="alert" size={16} />
+      {issue.message}
+    </p>
+  )
+}
 
 const ingToText = (xs: Ingredient[]) => xs.map((i) => (i.amount ? `${i.name} ${i.amount}` : i.name)).join('\n')
 const stepToText = (xs: Step[]) => xs.map((s) => s.text).join('\n')
@@ -28,13 +52,37 @@ export function RecipeEditor({
   mode,
   onModeChange,
   title = '菜谱',
+  issue = null,
+  onIssueClear,
 }: {
   value: RecipeContent
   onChange: (c: RecipeContent) => void
   mode: EditorMode
   onModeChange: (m: EditorMode) => void
   title?: string
+  issue?: EditorIssue | null
+  onIssueClear?: () => void
 }) {
+  // 有逐条错误：切到逐条编辑，滚到那一条并聚焦（每次新错误只做一次）
+  const rootRef = useRef<HTMLElement>(null)
+  const shown = useRef<EditorIssue | null>(null)
+  useEffect(() => {
+    if (!issue || shown.current === issue) return
+    if (mode !== 'fine') {
+      onModeChange('fine')
+      return
+    }
+    shown.current = issue
+    const el = rootRef.current?.querySelector<HTMLElement>(`[aria-label="${ISSUE_LABEL[issue.field](issue.index)}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.focus({ preventScroll: true })
+  }, [issue, mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  const bad = (f: IssueField, i: number) => issue?.field === f && issue.index === i
+  /** 改到出错的那一栏就清掉说明 */
+  const touch = (p: Partial<RecipeContent>) => {
+    if (issue && issue.field in p) onIssueClear?.()
+  }
   // 快速模式下的原始文本（保留大王的换行/空格，不被解析结果覆盖）
   const [ingText, setIngText] = useState(() => ingToText(value.ingredients))
   const [stepText, setStepText] = useState(() => stepToText(value.steps))
@@ -50,6 +98,7 @@ export function RecipeEditor({
   }, [mode, value])
 
   const setQuick = (k: 'ing' | 'step' | 'tip', t: string) => {
+    touch(k === 'ing' ? { ingredients: [] } : k === 'step' ? { steps: [] } : { tips: [] })
     if (k === 'ing') {
       setIngText(t)
       onChange({ ...value, ingredients: lines(t).map(splitIngredientLine).filter((i) => i.name) })
@@ -69,7 +118,10 @@ export function RecipeEditor({
     }
   }
 
-  const upd = (patch: Partial<RecipeContent>) => onChange({ ...value, ...patch })
+  const upd = (patch: Partial<RecipeContent>) => {
+    touch(patch)
+    onChange({ ...value, ...patch })
+  }
   const move = <T,>(arr: T[], i: number, d: number): T[] => {
     const j = i + d
     if (j < 0 || j >= arr.length) return arr
@@ -79,7 +131,7 @@ export function RecipeEditor({
   }
 
   return (
-    <section className="editor" aria-label={`${title}编辑区`}>
+    <section className="editor" aria-label={`${title}编辑区`} ref={rootRef}>
       <div className="editor-head">
         <h2 className="sec-title">
           <span className="sec-mark sec-mark--green" aria-hidden="true" />
@@ -161,10 +213,12 @@ export function RecipeEditor({
           <h3 className="fine-title">食材</h3>
           <ul className="rows">
             {value.ingredients.map((it, i) => (
-              <li key={i} className="row row--ing">
+              <li key={i} className={cx('row row--ing', bad('ingredients', i) && 'row--bad')}>
                 <input
                   className="input"
                   aria-label={`第 ${i + 1} 样食材名称`}
+                  aria-invalid={bad('ingredients', i) || undefined}
+                  aria-describedby={bad('ingredients', i) ? 'issue-ingredients' : undefined}
                   placeholder="名称"
                   value={it.name}
                   onChange={(e) => upd({ ingredients: value.ingredients.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })}
@@ -179,6 +233,7 @@ export function RecipeEditor({
                 <button type="button" className="icon-btn icon-btn--sm" aria-label={`删除第 ${i + 1} 样食材`} onClick={() => upd({ ingredients: value.ingredients.filter((_, k) => k !== i) })}>
                   <Icon name="trash" size={18} />
                 </button>
+                {bad('ingredients', i) && <IssueNote issue={issue!} />}
               </li>
             ))}
           </ul>
@@ -190,15 +245,18 @@ export function RecipeEditor({
           <h3 className="fine-title">步骤</h3>
           <ol className="rows">
             {value.steps.map((s, i) => (
-              <li key={i} className="row row--step">
+              <li key={i} className={cx('row row--step', bad('steps', i) && 'row--bad')}>
                 <span className="row-no" aria-hidden="true">
                   {i + 1}
                 </span>
                 <div className="row-main">
+                  {bad('steps', i) && <IssueNote issue={issue!} />}
                   <textarea
                     className="textarea"
                     rows={2}
                     aria-label={`第 ${i + 1} 步内容`}
+                    aria-invalid={bad('steps', i) || undefined}
+                    aria-describedby={bad('steps', i) ? 'issue-steps' : undefined}
                     placeholder="这一步做什么"
                     value={s.text}
                     onChange={(e) => upd({ steps: value.steps.map((x, k) => (k === i ? { ...x, text: e.target.value } : x)) })}
@@ -256,11 +314,17 @@ export function RecipeEditor({
           <h3 className="fine-title">小贴士</h3>
           <ul className="rows">
             {value.tips.map((t, i) => (
-              <li key={i} className="row row--ing">
-                <input className="input" aria-label={`第 ${i + 1} 条小贴士`} value={t} placeholder="小贴士" onChange={(e) => upd({ tips: value.tips.map((x, k) => (k === i ? e.target.value : x)) })} />
+              <li key={i} className={cx('row row--ing', bad('tips', i) && 'row--bad')}>
+                <input
+                  className="input"
+                  aria-label={`第 ${i + 1} 条小贴士`}
+                  aria-invalid={bad('tips', i) || undefined}
+                  aria-describedby={bad('tips', i) ? 'issue-tips' : undefined}
+                  value={t} placeholder="小贴士" onChange={(e) => upd({ tips: value.tips.map((x, k) => (k === i ? e.target.value : x)) })} />
                 <button type="button" className="icon-btn icon-btn--sm" aria-label={`删除第 ${i + 1} 条小贴士`} onClick={() => upd({ tips: value.tips.filter((_, k) => k !== i) })}>
                   <Icon name="trash" size={18} />
                 </button>
+                {bad('tips', i) && <IssueNote issue={issue!} />}
               </li>
             ))}
           </ul>

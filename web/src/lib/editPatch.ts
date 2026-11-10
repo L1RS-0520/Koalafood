@@ -64,3 +64,61 @@ export function metaErrors(c: Pick<RecipeContent, 'servings' | 'total_time'>): s
 
 /** PATCH 里有没有内容键（有就会作废厨驼任务、改成手写） */
 export const touchesContent = (patch: object) => CONTENT_KEYS.some((k) => k in patch)
+
+// ---- 逐条校验错误（后端 v2.3.3：400 VALIDATION + details {field, index, reason}） ----
+export type IssueField = 'steps' | 'ingredients' | 'tips'
+export interface FieldIssue {
+  field: IssueField
+  /** 提交出去的（cleanContent 之后的）数组下标，0 起 */
+  index: number
+  reason: string
+  message: string
+}
+/** details 里的 index 从几开始。按 JSON 数组下标 0 起；后端若改成 1 起只改这一处 */
+export const ISSUE_INDEX_BASE = 0
+
+/** 从 ApiError 里读出“第几条出错”；没有 details、旧版字符串数组、字段不认识都返回 null（按原来的方式处理） */
+export function fieldIssueOf(err: unknown): FieldIssue | null {
+  if (!err || typeof err !== 'object') return null
+  const e = err as { code?: unknown; message?: unknown; details?: unknown }
+  if (e.code !== 'VALIDATION') return null
+  const d = (Array.isArray(e.details) ? e.details.find((x) => x && typeof x === 'object') : e.details) as Record<string, unknown> | undefined
+  if (!d || typeof d !== 'object') return null
+  const field = d.field
+  if (field !== 'steps' && field !== 'ingredients' && field !== 'tips') return null
+  const raw = typeof d.index === 'number' ? d.index : typeof d.index === 'string' && /^\d+$/.test(d.index) ? Number(d.index) : NaN
+  if (!Number.isInteger(raw) || raw - ISSUE_INDEX_BASE < 0) return null
+  return { field, index: raw - ISSUE_INDEX_BASE, reason: typeof d.reason === 'string' ? d.reason : '', message: typeof e.message === 'string' ? e.message : '' }
+}
+
+/** 编辑区里的原始行（含空行）→ 提交时 cleanContent 丢掉空行后的下标；反查回原始行下标，找不到返回 -1 */
+export function rawIndexOf(c: RecipeContent, field: IssueField, cleanIndex: number): number {
+  const keep: boolean[] =
+    field === 'ingredients' ? c.ingredients.map((i) => !!i.name.trim()) : field === 'steps' ? c.steps.map((s) => !!s.text.trim()) : c.tips.map((t) => !!t.trim())
+  let n = -1
+  for (let i = 0; i < keep.length; i++) if (keep[i] && ++n === cleanIndex) return i
+  return -1
+}
+
+/** “只写了编号”：如 3、3.、3、、第3步、（3）、①（后端 v2.3.3 reason=only_number，mock 用同一规则） */
+const ONLY_NUMBER = /^[(（【[]?\s*(第\s*)?[0-9０-９一二三四五六七八九十百]+\s*[步条项样个]?\s*[)）】\]]?\s*[.．。、,，:：\-—~～]*$|^[①-⑳⑴-⒇❶-❿]$/
+export const isOnlyNumber = (s: string) => ONLY_NUMBER.test(s.trim())
+
+const ISSUE_TEXT: Record<IssueField, (n: number) => string> = {
+  steps: (n) => `第 ${n} 步只写了编号，补上做法或删掉这一步`,
+  ingredients: (n) => `第 ${n} 样食材只写了编号，补上名称或删掉这一样`,
+  tips: (n) => `第 ${n} 条小贴士只写了编号，补上内容或删掉这一条`,
+}
+/** 对已 clean 的内容找第一条“只写了编号”的（mock 返回 400 用；顺序：食材 → 步骤 → 小贴士） */
+export function onlyNumberIssue(c: Pick<RecipeContent, 'ingredients' | 'steps' | 'tips'>): FieldIssue | null {
+  const lists: [IssueField, string[]][] = [
+    ['ingredients', (c.ingredients ?? []).map((i) => i.name)],
+    ['steps', (c.steps ?? []).map((s) => s.text)],
+    ['tips', c.tips ?? []],
+  ]
+  for (const [field, xs] of lists) {
+    const i = xs.findIndex((x) => isOnlyNumber(x))
+    if (i >= 0) return { field, index: i, reason: 'only_number', message: ISSUE_TEXT[field](i + 1) }
+  }
+  return null
+}

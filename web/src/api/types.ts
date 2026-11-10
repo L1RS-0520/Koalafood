@@ -129,10 +129,13 @@ export class ApiError extends Error {
   /** VALIDATION / UNAUTHORIZED / CHEF_DISABLED / NOT_FOUND / CONFLICT / BAD_STATE / TOO_LARGE / BAD_TYPE / STORAGE_QUOTA / STORAGE_FULL / INTERNAL / NETWORK(前端) */
   code: string
   status: number
-  constructor(code: string, message: string, status = 0) {
+  /** 后端 error.details：旧版是字符串数组；v2.3.3 起逐条校验错误是 {field, index, reason}（见 lib/editPatch.fieldIssueOf） */
+  details?: unknown
+  constructor(code: string, message: string, status = 0, details?: unknown) {
     super(message)
     this.code = code
     this.status = status
+    if (details !== undefined) this.details = details
   }
 }
 

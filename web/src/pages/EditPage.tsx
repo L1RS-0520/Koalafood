@@ -7,10 +7,10 @@ import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
 import { checkFiles, PhotoManager } from '../components/PhotoManager'
 import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/StorageMeter'
-import { cleanContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
+import { cleanContent, RecipeEditor, type EditorIssue, type EditorMode } from '../components/RecipeEditor'
 import { BusyOverlay, LeaveGuard, PageLoading, StatePanel, TopBar } from '../components/ui'
 import { useApp } from '../lib/app'
-import { diffPatch, metaErrors, touchesContent } from '../lib/editPatch'
+import { diffPatch, fieldIssueOf, metaErrors, rawIndexOf, touchesContent } from '../lib/editPatch'
 import { compressAll } from '../lib/compress'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { photoIndexOf, tooLargeText } from '../lib/util'
@@ -41,6 +41,8 @@ export function EditPage() {
   const [full, setFull] = useState(false)
   // 这一页收到过 507：顶部红条立刻改“满啦”（刷新后按接口重判，不记住）
   const [got507, setGot507] = useState(false)
+  // 后端逐条校验错误（v2.3.3 details）：在那一条旁边一直显示，改动那一栏前不消失
+  const [issue, setIssue] = useState<EditorIssue | null>(null)
   const [storage] = useStorage(true)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   useTitle(confirmMode ? '修改后确认' : '编辑菜品')
@@ -211,6 +213,12 @@ export function EditPage() {
       setSaved(true)
       setTimeout(() => nav(detail, { replace: true }), 0)
     } catch (err) {
+      const fi = fieldIssueOf(err)
+      const row = fi && content ? rawIndexOf(content, fi.field, fi.index) : -1
+      if (fi && row >= 0) {
+        setIssue({ field: fi.field, index: row, message: fi.message })
+        return
+      }
       const code = app.handleError(err, '没保存上，再试一次')
       if (code === 'BAD_STATE') setTimeout(() => nav(detail, { replace: true }), 600)
     } finally {
@@ -274,7 +282,15 @@ export function EditPage() {
           </>
         )}
         <section className="form-card">
-          <RecipeEditor value={content} onChange={setContent} mode={editorMode} onModeChange={setEditorMode} title="食材和步骤" />
+          <RecipeEditor
+            value={content}
+            onChange={setContent}
+            mode={editorMode}
+            onModeChange={setEditorMode}
+            title="食材和步骤"
+            issue={issue}
+            onIssueClear={() => setIssue(null)}
+          />
         </section>
         <div className="submit-bar submit-bar--split">
           <Link className="btn btn--ghost btn--lg" to={detail}>

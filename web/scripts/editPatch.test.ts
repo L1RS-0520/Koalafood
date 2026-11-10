@@ -56,3 +56,43 @@ test('份量 / 总时长最多 20 字（按字符数），和后端同一句', a
   assert.deepEqual(metaErrors({ servings: '😀'.repeat(21), total_time: null }), ['份量（servings）最多 20 个字，现在 21 个字'])
   assert.deepEqual(metaErrors({ servings: null, total_time: '一'.repeat(25) }), ['总时长（total_time）最多 20 个字，现在 25 个字'])
 })
+
+test('只写了编号：判定规则', async () => {
+  const { isOnlyNumber } = await import('../src/lib/editPatch.ts')
+  for (const s of ['3', '3.', '3、', ' 12 ', '第3步', '第 3 步：', '（3）', '①', '三', '3)']) assert.equal(isOnlyNumber(s), true, s)
+  for (const s of ['3. 鸡蛋打散', '鸡蛋', '3个鸡蛋', '炒 3 分钟', '盐 适量', '']) assert.equal(isOnlyNumber(s), false, s)
+})
+
+test('onlyNumberIssue：找第一条只写编号的，文案和后端一致（mock 用）', async () => {
+  const { onlyNumberIssue } = await import('../src/lib/editPatch.ts')
+  const step = (text: string) => ({ text, heat: '', time: '' })
+  assert.equal(onlyNumberIssue({ ingredients: [{ name: '鸡蛋', amount: '2个' }], steps: [step('打散')], tips: [] }), null)
+  assert.deepEqual(onlyNumberIssue({ ingredients: [], steps: [step('打散'), step('2.')], tips: [] }), {
+    field: 'steps', index: 1, reason: 'only_number', message: '第 2 步只写了编号，补上做法或删掉这一步',
+  })
+  assert.equal(onlyNumberIssue({ ingredients: [{ name: '1', amount: '' }], steps: [], tips: [] })?.message, '第 1 样食材只写了编号，补上名称或删掉这一样')
+  assert.equal(onlyNumberIssue({ ingredients: [], steps: [], tips: ['ok', '3'] })?.message, '第 2 条小贴士只写了编号，补上内容或删掉这一条')
+})
+
+test('fieldIssueOf：读 details {field, index, reason}；没有 / 旧字符串数组 / 非 VALIDATION 都返回 null', async () => {
+  const { fieldIssueOf } = await import('../src/lib/editPatch.ts')
+  const msg = '第 3 步只写了编号，补上做法或删掉这一步'
+  assert.deepEqual(fieldIssueOf({ code: 'VALIDATION', message: msg, details: { field: 'steps', index: 2, reason: 'only_number' } }), {
+    field: 'steps', index: 2, reason: 'only_number', message: msg,
+  })
+  assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x' }), null)
+  assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x', details: ['食材最多 50 项'] }), null)
+  assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x', details: { field: 'name', index: 0 } }), null)
+  assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x', details: { field: 'steps', index: -1 } }), null)
+  assert.equal(fieldIssueOf({ code: 'CONFLICT', message: 'x', details: { field: 'steps', index: 0 } }), null)
+  assert.equal(fieldIssueOf(null), null)
+})
+
+test('rawIndexOf：提交下标（空行已丢）→ 编辑区原始行下标', async () => {
+  const { rawIndexOf } = await import('../src/lib/editPatch.ts')
+  const step = (text: string) => ({ text, heat: '', time: '' })
+  const c = { ingredients: [], steps: [step(''), step('a'), step('  '), step('3')], tips: [], servings: null, total_time: null }
+  assert.equal(rawIndexOf(c, 'steps', 0), 1)
+  assert.equal(rawIndexOf(c, 'steps', 1), 3)
+  assert.equal(rawIndexOf(c, 'steps', 2), -1)
+})

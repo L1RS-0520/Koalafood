@@ -18,7 +18,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     body = null
   }
   if (!res.ok) {
-    const err = (body as { error?: { code?: string; message?: string } } | null)?.error
+    const err = (body as { error?: { code?: string; message?: string; details?: unknown } } | null)?.error
     const fallback: Record<number, string> = {
       401: '这里是后厨，大王登录后才能操作',
       403: '厨驼已在设置里关闭，请先打开或改为自己写',
@@ -33,6 +33,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       err?.code ?? (res.status === 404 ? 'NOT_FOUND' : 'INTERNAL'),
       err?.message ?? fallback[res.status] ?? `后厨出了点状况（${res.status}），稍后再试`,
       res.status,
+      err?.details,
     )
   }
   return body as T

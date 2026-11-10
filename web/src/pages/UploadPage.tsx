@@ -8,13 +8,13 @@ import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
 import { checkFiles, PhotoManager, type PhotoItem } from '../components/PhotoManager'
 import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/StorageMeter'
-import { cleanContent, emptyContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
+import { cleanContent, emptyContent, RecipeEditor, type EditorIssue, type EditorMode } from '../components/RecipeEditor'
 import { BusyOverlay, Confirm, LeaveGuard, TopBar, Spinner } from '../components/ui'
 import { useApp } from '../lib/app'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { clearDraft, hasText, loadPhotos, loadText, savePhotos, saveText } from '../lib/uploadDraft'
 import { compressAll } from '../lib/compress'
-import { metaErrors } from '../lib/editPatch'
+import { fieldIssueOf, metaErrors, rawIndexOf } from '../lib/editPatch'
 import { cx, photoIndexOf, tooLargeText } from '../lib/util'
 
 interface LocalPhoto extends PhotoItem {
@@ -43,6 +43,7 @@ export function UploadPage() {
   const [quota, setQuota] = useState(false)
   const [full, setFull] = useState(false)
   const [got507, setGot507] = useState(false) // v2.4.6 §12-33-1：收到 507 后红条立刻改“满啦”
+  const [issue, setIssue] = useState<EditorIssue | null>(null) // 后端逐条校验错误（v2.3.3 details）
 
   const [serverBad, setServerBad] = useState<Record<string, string>>({})
 
@@ -192,6 +193,13 @@ export function UploadPage() {
       // 等 done 生效后再跳，避免被离开拦截
       setTimeout(() => nav(`/dishes/${encodeURIComponent(dish.id)}`, { replace: true }), 0)
     } catch (err) {
+      // 自己写时“第 N 步只写了编号”这类：滚到那一条、一直显示说明，不只闪 toast
+      const fi = effMode === CREATE_MODE.manual ? fieldIssueOf(err) : null
+      const row = fi ? rawIndexOf(content, fi.field, fi.index) : -1
+      if (fi && row >= 0) {
+        setIssue({ field: fi.field, index: row, message: fi.message })
+        return
+      }
       const code = app.handleError(err, '上传没成功，再试一次')
       if (code === 'STORAGE_QUOTA') {
         setQuota(true)
@@ -323,7 +331,15 @@ export function UploadPage() {
               </p>
             </div>
           ) : (
-            <RecipeEditor value={content} onChange={setContent} mode={editorMode} onModeChange={setEditorMode} title="食材和步骤" />
+            <RecipeEditor
+              value={content}
+              onChange={setContent}
+              mode={editorMode}
+              onModeChange={setEditorMode}
+              title="食材和步骤"
+              issue={issue}
+              onIssueClear={() => setIssue(null)}
+            />
           )}
         </section>
 

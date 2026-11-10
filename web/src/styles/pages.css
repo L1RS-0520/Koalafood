@@ -1962,3 +1962,28 @@
     order: 1;
   }
 }
+
+/* 后端逐条校验错误（v2.3.3 details）：出错那一条红框 + 一直显示的说明 */
+.row--bad .input[aria-invalid],
+.row--bad .textarea[aria-invalid] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+.row--ing.row--bad {
+  flex-wrap: wrap;
+}
+.row-err {
+  flex-basis: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 2px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  color: var(--storage-pct-danger); /* #B4232A，白底 6.5:1；--danger 只有 3.9:1 不够正文用 */
+}
+.row-err svg {
+  flex: none;
+  margin-top: 2px;
+}

@@ -3,7 +3,7 @@
 // 开发开关（localStorage）：koala-canteen:mock:can_edit = "0" 切访客视角；koala-canteen:mock:chef-delay 改出稿时间（毫秒）；
 // koala-canteen:mock:storage-used 覆盖已用字节（≥996147200 时上传返回 507 STORAGE_FULL）；koala-canteen:mock:ops-today 覆盖当天写入次数（上限 1000，≥1000 时上传/追加照片返回 429）。
 // 菜名含「塞满」→ 429 STORAGE_QUOTA；含「超大」→ 413 TOO_LARGE（模拟第 1 张 1,030KB）。
-import { metaErrors, touchesContent } from '../lib/editPatch'
+import { metaErrors, onlyNumberIssue, touchesContent } from '../lib/editPatch'
 import { tooLargeText } from '../lib/util'
 import { CHEF_STATUS, LIMITS } from './contract'
 import { mockDraft } from './mockChef'
@@ -159,6 +159,11 @@ function validateMeta(c: { servings?: string | null; total_time?: string | null 
   const errs = metaErrors({ servings: c.servings ?? null, total_time: c.total_time ?? null })
   if (errs.length) throw new ApiError('VALIDATION', errs.join('；'), 400)
 }
+/** 只写了编号的食材/步骤/小贴士 → 400 VALIDATION + details {field, index, reason:'only_number'}（对齐后端 v2.3.3） */
+function validateItems(c: Partial<Pick<RecipeContent, 'ingredients' | 'steps' | 'tips'>>) {
+  const it = onlyNumberIssue({ ingredients: c.ingredients ?? [], steps: c.steps ?? [], tips: c.tips ?? [] })
+  if (it) throw new ApiError('VALIDATION', it.message, 400, { field: it.field, index: it.index, reason: it.reason })
+}
 
 const emptyContent = (): RecipeContent => ({ ingredients: [], steps: [], tips: [], servings: null, total_time: null })
 
@@ -213,7 +218,7 @@ export const mockApi: Api = {
     requireLogin()
     const s = load()
     validateText(input.name, input.category, input.note)
-    if (input.mode === 'manual' && input.content) validateMeta(input.content)
+    if (input.mode === 'manual' && input.content) (validateMeta(input.content), validateItems(input.content))
     checkPhotos(input.photos)
     if (input.mode === 'chef') requireChef(s)
     await storageGate(input.name, input.photos)
@@ -251,6 +256,7 @@ export const mockApi: Api = {
     const note = patch.note === undefined ? d.note : patch.note
     validateText(name, category, note)
     validateMeta(patch)
+    validateItems(patch)
     Object.assign(d, {
       name: name.trim(),
       category,
@@ -345,6 +351,7 @@ export const mockApi: Api = {
     if (d.chef_status !== CHEF_STATUS.draft || !d.draft)
       throw new ApiError('BAD_STATE', '这份草稿已经不在了（状态刚刚变了），已为你刷新', 409)
     const c = content ?? d.draft
+    if (content) (validateMeta(content), validateItems(content))
     Object.assign(d, {
       ingredients: c.ingredients,
       steps: c.steps,
