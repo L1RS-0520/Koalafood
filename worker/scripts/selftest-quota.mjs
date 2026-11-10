@@ -53,7 +53,7 @@ try {
   let s = await storage();
   ok(s.ops_today === 4 && s.ops_limit === 5 && s.ops_pct === 80 && s.warn === true, "写了 4 次：ops_today=4、ops_pct=80、warn=true", JSON.stringify(s));
   const pre = await upload("额度A3-两张", [1000, 1000], 5);
-  ok(pre.status === 429 && pre.body.error.code === "STORAGE_QUOTA" && pre.body.error.message === "今天传太多了，明天再传", "剩 1 次却要传 2 张：写入前预判 → 429 STORAGE_QUOTA", JSON.stringify(pre.body));
+  ok(pre.status === 429 && pre.body.error.code === "STORAGE_QUOTA" && pre.body.error.message === "今天食堂的照片柜塞满啦，明天再来传吧～", "剩 1 次却要传 2 张：写入前预判 → 429 STORAGE_QUOTA", JSON.stringify(pre.body));
   ok((await storage()).ops_today === 4, "预判拒绝时一次 KV 都没写");
   ok((await upload("额度A4", [1000], 7)).status === 201, "第 5 次写入成功");
   const sixth = await upload("额度A5", [1000], 8);
@@ -89,7 +89,7 @@ try {
   s = await storage();
   ok(s.used_bytes === 8000 && s.limit_bytes === 10000 && s.used_pct === 80 && s.warn === true && s.photo_count === 2, "已用 8000/10000：used_pct=80、warn=true", JSON.stringify(s));
   const full = await upload("容量B2", [1000, 1500], 13);
-  ok(full.status === 507 && full.body.error.code === "STORAGE_FULL" && full.body.error.message === "食堂的照片仓库满了，先删点旧照片", "8000+2500>10000 → 507 STORAGE_FULL", JSON.stringify(full.body));
+  ok(full.status === 507 && full.body.error.code === "STORAGE_FULL" && full.body.error.message === "照片柜满啦，删掉一些旧照片才能继续上传～", "8000+2500>10000 → 507 STORAGE_FULL", JSON.stringify(full.body));
   ok(!(await names()).includes("容量B2") && (await storage()).ops_today === 2, "不留半条、一次 KV 都没写");
   ok((await req("POST", `/api/kitchen/dishes/${b1.id}/photos`, { form: form({}, [2500], 15) })).status === 507, "追加照片超限 → 507");
   ok((await upload("容量B3", [2000], 16)).status === 201, "正好到 10000 可以");
@@ -101,6 +101,18 @@ try {
   ok(Object.keys(s2.body).join() === "chef_enabled", "GET /api/settings 不带用量字段");
   cookie = "";
   ok((await req("GET", "/api/kitchen/storage")).status === 401, "storage 接口需要登录");
+  await stop(p); p = null;
+
+  console.log("[C] STORAGE_USED_SIM（本地模拟已用量）+ 同时超限先判 507");
+  p = await start({ PHOTO_STORE: "kv", STORAGE_USED_SIM: 996147000, KV_DAILY_WRITE_LIMIT: 0 });
+  s = await storage();
+  ok(s.used_bytes === 996147000 && s.limit_bytes === 996147200 && s.warn === true, "已用量被模拟成 996147000，上限默认 996147200（950×1024×1024）", JSON.stringify(s));
+  const both = await upload("模拟C1", [1000], 21);
+  ok(both.status === 507 && both.body.error.code === "STORAGE_FULL", "容量和次数同时超：先判 507", JSON.stringify(both.body));
+  ok((await upload("模拟C2", [100], 22)).status === 429, "容量够（+100 ≤ 上限）但次数为 0 → 429");
+  ok(!(await names()).some((x) => x.startsWith("模拟C")), "都没留下半条菜");
+  const hh = (await req("GET", "/api/health")).body;
+  ok(hh.photo_store === s.store, "storage.store 与 health.photo_store 一致");
 } catch (e) { fail++; fails.push(e.message); console.error(e); }
 finally { if (p) await stop(p); rmSync(DIR, { recursive: true, force: true }); }
 console.log(`\n结果：通过 ${pass}，失败 ${fail}${fails.length ? "\n失败项：" + fails.join("；") : ""}`);

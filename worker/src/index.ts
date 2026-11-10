@@ -22,8 +22,8 @@ const MAX_PHOTOS = 9;
 const CHEF_MOCK_DELAY_MS = 20_000;
 
 // ---------- 通用 ----------
-const STORAGE_QUOTA_MSG = "今天传太多了，明天再传";
-const STORAGE_FULL_MSG = "食堂的照片仓库满了，先删点旧照片";
+const STORAGE_QUOTA_MSG = "今天食堂的照片柜塞满啦，明天再来传吧～";
+const STORAGE_FULL_MSG = "照片柜满啦，删掉一些旧照片才能继续上传～";
 app.onError((err, c) => {
   if (err instanceof ApiError) return errorResponse(c, err);
   if (err instanceof StorageFullError) {
