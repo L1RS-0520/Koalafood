@@ -10,6 +10,7 @@ import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/
 import { cleanContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
 import { BusyOverlay, LeaveGuard, PageLoading, StatePanel, TopBar } from '../components/ui'
 import { useApp } from '../lib/app'
+import { diffPatch, touchesContent } from '../lib/editPatch'
 import { compressAll } from '../lib/compress'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { photoIndexOf, tooLargeText } from '../lib/util'
@@ -27,6 +28,8 @@ export function EditPage() {
   const [basics, setBasics] = useState<Basics>({ name: '', category: '', note: '' })
   const [content, setContent] = useState<RecipeContent | null>(null)
   const [initial, setInitial] = useState('')
+  /** 打开时的原值：保存时和它做 diff，只发改过的字段 */
+  const [orig, setOrig] = useState<{ basics: Basics; content: RecipeContent } | null>(null)
   const [editorMode, setEditorMode] = useState<EditorMode>('fine')
   const [errors, setErrors] = useState<BasicErrors>({})
   const [saving, setSaving] = useState(false)
@@ -59,6 +62,7 @@ export function EditPage() {
         setBasics(b)
         setContent(c)
         setInitial(snap(b, c))
+        setOrig({ basics: { ...b }, content: { ...c, ingredients: c.ingredients.map((x) => ({ ...x })), steps: c.steps.map((x) => ({ ...x })), tips: [...c.tips] } })
         setEditorMode(isEmptyContent(c) ? 'quick' : 'fine')
       })
       .catch((e) => alive && setLoadErr(e instanceof ApiError ? e.message : '这道菜没加载出来'))
@@ -187,8 +191,10 @@ export function EditPage() {
         await api.confirmDraft(dish.id, c)
         app.toast(CONFIRMED_TEXT, 'ok')
       } else {
-        await api.updateDish(dish.id, { name: basics.name.trim(), category: basics.category, note: basics.note.trim() || null, ...c })
-        app.toast('保存好啦', 'ok')
+        // 只发真正改过的字段（后端审查 P1-1）：只改菜名/分类/备注时不带内容键，来源和厨驼任务都不变
+        const patch = orig ? diffPatch(orig, basics, content) : { name: basics.name.trim(), category: basics.category, note: basics.note.trim() || null, ...c }
+        if (Object.keys(patch).length) await api.updateDish(dish.id, patch)
+        app.toast(Object.keys(patch).length ? '保存好啦' : '没有改动', 'ok')
       }
       setSaved(true)
       setTimeout(() => nav(detail, { replace: true }), 0)
@@ -200,7 +206,9 @@ export function EditPage() {
     }
   }
 
-  const chefTaskWillDrop = !confirmMode && (dish.chef_status === CHEF_STATUS.pending || dish.chef_status === CHEF_STATUS.draft)
+  // 只有改了食材/步骤等内容才会作废厨驼任务（只改菜名/分类/备注不会）
+  const contentChanged = !!orig && !!content && touchesContent(diffPatch(orig, basics, content))
+  const chefTaskWillDrop = !confirmMode && contentChanged && (dish.chef_status === CHEF_STATUS.pending || dish.chef_status === CHEF_STATUS.draft)
 
   return (
     <main className="page page--form">

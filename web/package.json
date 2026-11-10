@@ -12,7 +12,8 @@
     "typecheck": "tsc -b",
     "shots": "node scripts/shots.mjs",
     "preview:mock": "vite preview --outDir dist-mock --port 4174",
-    "test:unit": "node --test --experimental-strip-types scripts/compress.test.ts scripts/copy.test.ts",
+    "test:unit": "node --test --experimental-strip-types scripts/compress.test.ts scripts/copy.test.ts scripts/editPatch.test.ts",
+    "test:patch": "node scripts/patch-rule-test.mjs",
     "test:compress": "node scripts/compress-browser-test.mjs"
   },
   "dependencies": {

@@ -3,6 +3,7 @@
 // 开发开关（localStorage）：koala-canteen:mock:can_edit = "0" 切访客视角；koala-canteen:mock:chef-delay 改出稿时间（毫秒）；
 // koala-canteen:mock:storage-used 覆盖已用字节（≥996147200 时上传返回 507 STORAGE_FULL）；koala-canteen:mock:ops-today 覆盖当天写入次数（上限 1000，≥1000 时上传/追加照片返回 429）。
 // 菜名含「塞满」→ 429 STORAGE_QUOTA；含「超大」→ 413 TOO_LARGE（模拟第 1 张 1,030KB）。
+import { touchesContent } from '../lib/editPatch'
 import { CHEF_STATUS, LIMITS } from './contract'
 import { mockDraft } from './mockChef'
 import { makeSeed, SEED_PHOTOS, type MockDish, type MockPhoto } from './mockSeed'
@@ -245,12 +246,15 @@ export const mockApi: Api = {
       servings: patch.servings === undefined ? d.servings : patch.servings,
       total_time: patch.total_time === undefined ? d.total_time : patch.total_time,
     })
-    // 约定 v2.1：PATCH → confirmed + source=manual，并作废未处理的厨驼任务
-    d.chef_status = CHEF_STATUS.confirmed
-    d.source = 'manual'
-    d.draft = null
-    d.chef_requested_at = null
-    d.requested_note = null
+    // 接口约定 v2.3.2 第 12 条：只有 patch 里出现内容键（ingredients/steps/tips/servings/total_time，值没变也算）
+    // 才 → confirmed + source=manual 并作废厨驼任务；只改 name/category/note 时 source、chef_status 都不变
+    if (touchesContent(patch)) {
+      d.chef_status = CHEF_STATUS.confirmed
+      d.source = 'manual'
+      d.draft = null
+      d.chef_requested_at = null
+      d.requested_note = null
+    }
     d.updated_at = now()
     save(s)
     return toDish(d)

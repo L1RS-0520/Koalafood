@@ -15,22 +15,8 @@ const lines = (t: string) =>
     .filter(Boolean)
 
 /** 去掉空行，保存前调用 */
-export function cleanContent(c: RecipeContent): RecipeContent {
-  return {
-    ingredients: c.ingredients.map((i) => ({ name: i.name.trim(), amount: i.amount.trim() })).filter((i) => i.name),
-    steps: c.steps
-      .map((s) => {
-        const st: Step = { text: s.text.trim(), heat: s.heat.trim(), time: s.time.trim() }
-        const cap = s.caption?.trim()
-        if (cap) st.caption = [...cap].slice(0, LIMITS.captionMax).join('')
-        return st
-      })
-      .filter((s) => s.text),
-    tips: c.tips.map((t) => t.trim()).filter(Boolean),
-    servings: c.servings?.trim() || null,
-    total_time: c.total_time?.trim() || null,
-  }
-}
+// 清理逻辑挪到 lib/editPatch.ts（纯函数，便于单测），这里转出保持原有引用不变
+export { cleanContent } from '../lib/editPatch'
 
 export const emptyContent = (): RecipeContent => ({ ingredients: [], steps: [], tips: [], servings: null, total_time: null })
 
