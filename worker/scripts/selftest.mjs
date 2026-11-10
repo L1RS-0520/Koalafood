@@ -257,6 +257,32 @@ async function main() {
   ok((await req("GET", "/api/categories", { auth: false })).body.categories.length === 6, "categories 六个");
   ok((await req("GET", "/api/dishes/not-exist")).body.error?.code === "NOT_FOUND", "不存在的菜 404");
   ok((await req("PATCH", `/api/kitchen/dishes/${C.id}`, { json: [1] })).status === 400, "PATCH 非对象 JSON → 400");
+
+  console.log("[列表 total_time（v2.3.2）]");
+  {
+  const pubT = async (id) => (await req("GET", "/api/dishes", { auth: false })).body.dishes.find((x) => x.id === id);
+  const mine = async (id) => (await req("GET", "/api/dishes")).body.dishes.find((x) => x.id === id);
+  const detail = async (id, auth) => (await req("GET", `/api/dishes/${id}`, { auth })).body;
+  const T1 = (await newDish({ name: "自测-列表时长手写", mode: "manual", total_time: "12分钟" })).body;
+  ok((await pubT(T1.id))?.total_time === "12分钟", "手写菜：未登录列表 total_time=12分钟");
+  const T0 = (await newDish({ name: "自测-列表时长空", mode: "manual" })).body;
+  const s0 = await pubT(T0.id);
+  ok(s0 && "total_time" in s0 && s0.total_time === null, "没填时长：列表 total_time=null（字段存在）", JSON.stringify(s0));
+  const T2 = (await newDish({ name: "自测-列表时长厨驼", mode: "chef" })).body;
+  ok((await pubT(T2.id))?.total_time === null, "pending：列表 total_time=null");
+  const dr = await req("POST", `/api/chef/tasks/${T2.id}/draft`, { chef: true, json: { ...goodDraft(), total_time: "25分钟" } });
+  ok(dr.status === 200 && dr.body.chef_status === "draft", "厨驼交稿（草稿 total_time=25分钟）");
+  ok((await pubT(T2.id))?.total_time === null && (await mine(T2.id))?.total_time === null, "draft：列表不露草稿时长（未登录、登录都为 null）");
+  ok((await detail(T2.id, false)).total_time === null, "draft：详情顶层 total_time 也是 null（同一口径）");
+  ok((await req("POST", `/api/kitchen/dishes/${T2.id}/confirm`)).body.total_time === "25分钟", "确认草稿");
+  ok((await pubT(T2.id))?.total_time === "25分钟", "confirmed：列表 total_time=25分钟");
+  ok((await req("POST", `/api/kitchen/dishes/${T2.id}/ask-chef`, { json: { note: "再写一次" } })).body.chef_status === "pending", "重找厨驼 → pending");
+  await req("POST", `/api/chef/tasks/${T2.id}/draft`, { chef: true, json: { ...goodDraft(), total_time: "99分钟" } });
+  const s2 = await pubT(T2.id);
+  ok(s2?.chef_status === "draft" && s2.total_time === "25分钟", "重写中的新草稿（99分钟）不外露，列表仍显示已确认的 25分钟", JSON.stringify(s2));
+  ok((await detail(T2.id, false)).total_time === s2.total_time, "列表与详情 total_time 一致");
+  ok((await req("PATCH", `/api/kitchen/dishes/${T1.id}`, { json: { total_time: "" } })).status === 200 && (await pubT(T1.id))?.total_time === null, "PATCH 清空时长 → 列表 null");
+  }
   const lo = await req("POST", "/api/dev/logout");
   ok(lo.status === 200, "dev/logout");
   return pendingBefore;
