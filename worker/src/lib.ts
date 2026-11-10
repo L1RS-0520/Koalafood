@@ -16,7 +16,8 @@ const STATUS: Record<ErrorCode, number> = {
 };
 
 export class ApiError extends Error {
-  constructor(public code: ErrorCode, message: string, public details?: string[]) { super(message); }
+  code: ErrorCode; details?: string[];
+  constructor(code: ErrorCode, message: string, details?: string[]) { super(message); this.code = code; this.details = details; }
   get status() { return STATUS[this.code]; }
 }
 
@@ -75,13 +76,18 @@ export function sniffImage(buf: Uint8Array): PhotoInfo["ext"] | null {
 }
 const TYPE_OF = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" } as const;
 
+/** KB = ceil(字节/1024)，千分位逗号：「照片太大了（1,030KB），上限 1,024KB」；批量时前缀「第 N 张」 */
+export const fmtKB = (bytes: number) => Math.ceil(bytes / 1024).toLocaleString("en-US") + "KB";
+export const tooLargeMessage = (size: number, index?: number) =>
+  `${index ? `第 ${index} 张` : ""}照片太大了（${fmtKB(size)}），上限 ${fmtKB(MAX_PHOTO_BYTES)}`;
+
 export async function readPhoto(v: unknown): Promise<PhotoInfo> {
   if (!v || typeof v === "string" || typeof (v as File).arrayBuffer !== "function")
     throw new ApiError("VALIDATION", "请上传一张菜品照片");
   const f = v as File;
   if (f.size === 0) throw new ApiError("VALIDATION", "照片是空文件，请重新选择");
   if (f.size > MAX_PHOTO_BYTES)
-    throw new ApiError("TOO_LARGE", `照片太大了（${(f.size / 1024 / 1024).toFixed(2)}MB），单张最大 1MB，请压缩后再传`);
+    throw new ApiError("TOO_LARGE", tooLargeMessage(f.size));
   const bytes = await f.arrayBuffer();
   const ext = sniffImage(new Uint8Array(bytes.slice(0, 16)));
   if (!ext) throw new ApiError("BAD_TYPE", "照片格式不支持，只能上传 jpg、png 或 webp 图片");

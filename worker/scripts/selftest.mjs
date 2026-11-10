@@ -89,7 +89,7 @@ async function main() {
   const e1 = await newDish({ name: "自测-刚好1MB", mode: "manual" }, [[edge, "image/jpeg"]]);
   ok(e1.status === 201, "正好 1048576 字节可以上传");
   const e2 = await newDish({ name: "自测-超1MB", mode: "manual" }, [[png(), "image/png"], [big, "image/jpeg"]]);
-  ok(e2.status === 413 && e2.body.error.code === "TOO_LARGE" && /第 2 张/.test(e2.body.error.message), "1048577 字节 → 413 TOO_LARGE，指明第 2 张", JSON.stringify(e2.body));
+  ok(e2.status === 413 && e2.body.error.code === "TOO_LARGE" && e2.body.error.message === "第 2 张照片太大了（1,025KB），上限 1,024KB", "1048577 字节 → 413 TOO_LARGE「第 2 张照片太大了（1,025KB），上限 1,024KB」", JSON.stringify(e2.body));
   const e3 = await newDish({ name: "自测-假图", mode: "manual" }, [[png(), "image/png"], [Buffer.from("hello world, not image"), "image/jpeg"]]);
   ok(e3.status === 415 && /第 2 张/.test(e3.body.error.message), "伪装 MIME 的文本 → 415 BAD_TYPE（magic bytes）");
   const ten = Array.from({ length: 10 }, (_, i) => [png(4, 4, i + 1), "image/png"]);

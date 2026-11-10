@@ -5,9 +5,10 @@
  * 两项都在写任何照片之前检查，保证不写一半。
  */
 import type { Env } from "../env.ts";
+import { isLocalEnv } from "../auth.ts";
 
-/** 默认安全上限 950MB（1024 进制：950×1024×1024 = 996,147,200 字节；KV 免费版总容量 1 GB，留余量）。
- * STORAGE_LIMIT_BYTES 可覆盖（本地调小测 507）；线上没配就用这个默认值 */
+/** 容量上限 950MB（1024 进制：950×1024×1024 = 996,147,200 字节；KV 免费版总容量 1 GB，留余量）。
+ * 线上固定用这个值；STORAGE_LIMIT_BYTES 只在本地生效（调小测 507） */
 export const DEFAULT_STORAGE_LIMIT_BYTES = 950 * 1024 * 1024; // 996,147,200
 /** 默认每天 1,000 次（KV 免费版：写入 1,000 次/天、删除 1,000 次/天；这里把写入+删除合并计数，更保守） */
 export const DEFAULT_KV_DAILY_WRITE_LIMIT = 1000;
@@ -20,12 +21,17 @@ export class StorageFullError extends Error {
 }
 
 const num = (v: string | undefined, d: number) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && v !== undefined && v !== "" ? n : d; };
-export const storageLimitBytes = (env: Env) => num(env.STORAGE_LIMIT_BYTES, DEFAULT_STORAGE_LIMIT_BYTES);
+export const storageLimitBytes = (env: Env) => (isLocalEnv(env) ? num(env.STORAGE_LIMIT_BYTES, DEFAULT_STORAGE_LIMIT_BYTES) : DEFAULT_STORAGE_LIMIT_BYTES);
+/** 剩余张数按每张 500KB = 512,000 字节估算 */
+export const PHOTO_ESTIMATE_BYTES = 512000;
+export const photosLeft = (used: number, limit: number) => Math.floor(Math.max(0, limit - used) / PHOTO_ESTIMATE_BYTES);
+/** level：<80% ok；≥80% warn；≥95% danger（danger 只用于红色提示，不等于 STORAGE_FULL，不拦上传；拦不拦只看 已用+本次 > 上限） */
+/** 按实际字节判断，不用四舍五入后的 percent：79.96% 显示 80.0 但仍是 ok */
+export const capacityLevel = (used: number, limit: number): "ok" | "warn" | "danger" =>
+  used * 100 >= limit * 95 ? "danger" : used * 100 >= limit * 80 ? "warn" : "ok";
 export const kvDailyLimit = (env: Env) => num(env.KV_DAILY_WRITE_LIMIT, DEFAULT_KV_DAILY_WRITE_LIMIT);
 export const utcDay = (d = new Date()) => d.toISOString().slice(0, 10);
 
-/** 生产环境判断：配置了 ACCESS_TEAM_DOMAIN 即视为线上 */
-export const isProduction = (env: Env) => !!env.ACCESS_TEAM_DOMAIN?.trim();
 
 /**
  * 已用字节 = SUM(dish_photos.size) + SUM(orphan_photos.size)。
@@ -35,7 +41,7 @@ export async function usedBytes(env: Env): Promise<{ bytes: number; photos: numb
   const db = env.DB;
   const a = await db.prepare("SELECT COALESCE(SUM(size),0) AS b, COUNT(*) AS n FROM dish_photos").first<{ b: number; n: number }>();
   const sim = env.STORAGE_USED_SIM?.trim();
-  if (sim && !isProduction(env) && Number.isFinite(Number(sim)) && Number(sim) >= 0)
+  if (sim && isLocalEnv(env) && Number.isFinite(Number(sim)) && Number(sim) >= 0)
     return { bytes: Number(sim), photos: a?.n ?? 0, simulated: true };
   const o = await db.prepare("SELECT COALESCE(SUM(size),0) AS b FROM orphan_photos").first<{ b: number }>();
   return { bytes: (a?.b ?? 0) + (o?.b ?? 0), photos: a?.n ?? 0, simulated: false };
@@ -71,12 +77,12 @@ export async function checkOps(env: Env, ops: number) {
 export async function storageReport(env: Env, kind: string) {
   const { bytes, photos } = await usedBytes(env);
   const limit = storageLimitBytes(env);
-  const ops = await opsToday(env.DB);
-  const opsLimit = kind === "kv" ? kvDailyLimit(env) : null;
-  const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
-  const used_pct = pct(bytes, limit), ops_pct = opsLimit ? pct(ops, opsLimit) : 0;
+  const raw = limit > 0 ? (bytes / limit) * 100 : 100;
+  const percent = Math.round(raw * 10) / 10;
   return {
-    store: kind, used_bytes: bytes, limit_bytes: limit, photo_count: photos, used_pct,
-    ops_today: ops, ops_limit: opsLimit, ops_pct, warn: used_pct >= 80 || ops_pct >= 80,
+    store: kind,
+    photo_count: photos,
+    capacity: { used_bytes: bytes, limit_bytes: limit, percent, level: capacityLevel(bytes, limit), photos_left: photosLeft(bytes, limit) },
+    daily_ops: { used: await opsToday(env.DB), limit: kvDailyLimit(env) },
   };
 }

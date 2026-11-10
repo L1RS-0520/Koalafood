@@ -6,7 +6,7 @@ import { cors } from "hono/cors";
 import type { Env } from "./env.ts";
 import {
   ApiError, errorResponse, CATEGORIES, checkName, checkCategory, checkNote, checkShortText,
-  readPhoto, PHOTO_KEY_RE, safeEqual, nowIso, type PhotoInfo,
+  readPhoto, tooLargeMessage, PHOTO_KEY_RE, safeEqual, nowIso, type PhotoInfo,
 } from "./lib.ts";
 import { toDish, toTask, draftColumns, getDish, getPhotos, getChefEnabled, type DishRow, type PhotoRow } from "./db.ts";
 import { normalizeDraft, type RecipeDraft } from "./generator/draft.ts";
@@ -84,7 +84,8 @@ async function readPhotos(form: FormData, min: number, max: number): Promise<Pho
   for (const [i, f] of files.entries()) {
     try { out.push(await readPhoto(f)); }
     catch (e) {
-      if (e instanceof ApiError && files.length > 1) throw new ApiError(e.code, `第 ${i + 1} 张照片：${e.message}`);
+      if (e instanceof ApiError && files.length > 1)
+        throw new ApiError(e.code, e.code === "TOO_LARGE" ? tooLargeMessage((f as File).size, i + 1) : `第 ${i + 1} 张照片：${e.message}`);
       throw e;
     }
   }

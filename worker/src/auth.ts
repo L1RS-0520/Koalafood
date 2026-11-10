@@ -10,8 +10,14 @@ export interface Viewer { logged_in: boolean; email: string | null; via: "access
 export const DEV_COOKIE = "koala_dev_auth";
 export const DEV_EMAIL = "koala-king@dev.local";
 
-export const accessConfigured = (env: Env) => !!(env.ACCESS_TEAM_DOMAIN?.trim() && env.ACCESS_AUD?.trim());
-export const devAuthEnabled = (env: Env) => !accessConfigured(env) && env.DEV_AUTH === "1";
+/**
+ * 本地/线上的唯一判断：ACCESS_TEAM_DOMAIN、ACCESS_AUD 都没配 = 本地。
+ * 只配了一半也算线上（Access 校验会失败 → 没人能登录，宁可关死也不放开）。
+ * DEV_AUTH、STORAGE_LIMIT_BYTES、STORAGE_USED_SIM 都只在 isLocalEnv 为 true 时生效。
+ */
+export const isLocalEnv = (env: Env) => !env.ACCESS_TEAM_DOMAIN?.trim() && !env.ACCESS_AUD?.trim();
+export const accessConfigured = (env: Env) => !isLocalEnv(env);
+export const devAuthEnabled = (env: Env) => isLocalEnv(env) && env.DEV_AUTH === "1";
 
 const b64urlDecode = (s: string) => {
   const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
