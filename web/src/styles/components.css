@@ -158,10 +158,10 @@
   align-items: center;
   gap: 8px;
   margin: 0 calc(var(--page-x) * -1);
-  padding: 10px var(--page-x);
-  background: rgba(255, 246, 229, 0.92);
-  backdrop-filter: blur(6px);
-  border-bottom: var(--line);
+  padding: 0 var(--page-x);
+  height: var(--header-h);
+  background: var(--paper);
+  border-bottom: var(--line-sm);
 }
 .topbar-title {
   flex: 1;
@@ -275,195 +275,92 @@
 /* ========== 菜品卡片（按设计稿）========== */
 .grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--grid-gap);
-  padding: 4px 0 8px;
-}
-@media (min-width: 640px) {
-  .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px;
-  }
+  grid-template-columns: 1fr;
+  gap: 20px;
+  padding: 0;
 }
 @media (min-width: 960px) {
   .grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 24px;
-  }
-}
-/* 1280 宽：每行 5 张（卡宽约 190，设计 首页分类页 ④、走查 P2-15） */
-@media (min-width: 1200px) {
-  .grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px 24px;
   }
 }
 .card {
   position: relative;
   display: block;
-  background: var(--surface);
+  background: var(--card);
   border: var(--line);
   border-radius: var(--r-card);
-  box-shadow: var(--shadow);
   overflow: hidden;
   color: inherit;
   text-decoration: none;
-  transition:
-    transform var(--t-fast) var(--ease-pop),
-    box-shadow var(--t-press);
-  animation: card-in 360ms var(--ease-pop) both;
-  animation-delay: calc(var(--i, 0) * 45ms);
-}
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px) rotate(0deg) scale(0.96);
-  }
-}
-.card:hover {
-  transform: translateY(-3px);
-  box-shadow: 6px 7px 0 var(--ink);
 }
 .card:active {
-  transform: translate(3px, 3px);
-  box-shadow: var(--shadow-press);
+  opacity: 0.92;
 }
-.card-cover {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  border-bottom: var(--line);
-  overflow: hidden;
-  background: var(--koala);
+.card-pic {
+  height: 250px;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px 0;
 }
-.card-cover img {
+.card-pic img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-}
-.card-cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(rgba(30, 26, 24, 0.22) 1.2px, transparent 1.5px);
-  background-size: 7px 7px;
-  -webkit-mask: linear-gradient(135deg, transparent 60%, #000 100%);
-  mask: linear-gradient(135deg, transparent 60%, #000 100%);
+  object-fit: contain;
 }
 .card-cover-empty {
   display: grid;
   place-items: center;
+  gap: 6px;
   height: 100%;
-  color: #fff;
+  color: var(--muted);
+  font-size: 13px;
 }
-.card-stamp {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 9px 1px 6px;
-  background: var(--accent);
-  border: var(--line-sm);
-  border-radius: 8px;
-  box-shadow: var(--shadow-sm);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 18px;
-  transform: rotate(-3deg);
-  animation: stamp-in 420ms var(--ease-pop) both;
-}
-.card-stamp i {
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--ink);
-  border-radius: 50%;
-  background: var(--primary);
-}
-@keyframes stamp-in {
-  from {
-    transform: scale(1.6) rotate(-8deg);
-    opacity: 0;
-  }
-}
-.card-chef {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
+.card-meta {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  /* 88% 奶油色叠在封面上，能透出照片（设计 §5.1、走查 P2-1） */
-  background: rgba(255, 246, 229, 0.88);
-  font-size: 12px;
-}
-.card-chef-avatar {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  border: var(--line-md);
-  border-radius: 50%;
-  background: #fff;
-  overflow: hidden;
-}
-.card-chef-avatar .llama {
-  width: 60px !important;
-  margin-top: 10px;
-  animation: llama-bob 1.6s ease-in-out infinite;
-  transform-origin: 50% 90%;
-}
-.card-chef-text {
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 16px;
-  white-space: nowrap;
-}
-.card-chef .dots {
-  margin: 0;
-  color: var(--text-2);
-}
-@media (prefers-reduced-motion: reduce) {
-  .card-chef-avatar .llama {
-    animation: none;
-  }
-}
-.card-body {
-  padding: 10px 12px 12px;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px 14px;
+  min-width: 0;
 }
 .card-name {
+  font-family: var(--font-display);
   font-size: var(--fs-h3-sm);
   line-height: var(--lh-h3-sm);
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
-@media (min-width: 640px) {
-  .card-body {
-    padding: 12px 14px 14px;
-  }
-  .card-name {
-    font-size: var(--fs-h3);
-    line-height: var(--lh-h3);
-  }
+.card-flag {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+  flex: none;
 }
 .card--skeleton {
-  animation: none;
+  pointer-events: none;
 }
-.card--skeleton .card-cover {
-  border-bottom-color: var(--cream-2);
+.card--skeleton .card-pic {
+  background: var(--cream-2);
 }
 .sk-line {
   height: 16px;
-  border-radius: 8px;
+  border-radius: 4px;
+  width: 40%;
 }
 .sk-line--short {
   width: 50%;
   margin-top: 10px;
+}
+@media (min-width: 960px) {
+  .card-pic {
+    height: 220px;
+  }
 }
 
 /* ========== 分类标签栏 ========== */
