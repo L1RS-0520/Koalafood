@@ -1,7 +1,7 @@
 // 多图管理：预览网格、删除、拖动排序（指针事件，手机可用）+ 前移/后移/设封面按钮兜底；第一张为封面
 import { useRef, useState } from 'react'
 import { LIMITS } from '../api'
-import { cx, formatBytes } from '../lib/util'
+import { cx, formatBytes, kb } from '../lib/util'
 import { Icon } from './Icon'
 import { Confirm, Spinner } from './ui'
 
@@ -10,6 +10,8 @@ export interface PhotoItem {
   url: string
   /** 不合格原因（提交前逐张校验时标出） */
   bad?: string | null
+  /** 压缩后字节数（上传页显示“✓ 486KB”） */
+  size?: number
 }
 
 export const HEIC_TIP = 'iPhone 可以在「设置 > 相机 > 格式」里选「兼容性最佳」，以后拍的就是 JPG 了'
@@ -106,10 +108,20 @@ export function PhotoManager({
             >
               <img src={p.url} alt={`第 ${i + 1} 张`} draggable={false} />
               {i === 0 && <span className="photo-cover-tag">封面</span>}
-              {p.bad && (
+              <span className="photo-no" aria-hidden="true">
+                {i + 1}
+              </span>
+              {p.bad ? (
                 <span className="photo-bad" role="alert">
                   {p.bad}
                 </span>
+              ) : (
+                p.size != null && (
+                  <span className="photo-size" title="已压缩">
+                    <Icon name="check" size={11} />
+                    {kb(p.size)}
+                  </span>
+                )
               )}
               {items.length > 1 && (
                 <button
@@ -171,9 +183,18 @@ export function PhotoManager({
         )}
       </ul>
       {progress && (
-        <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} aria-label="照片压缩进度">
-          <i style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} />
-          <span>正在压缩照片 {progress.done}/{progress.total}（长边 1600px、单张 ≤1MB）</span>
+        <div className="compress-card" role="status">
+          <p>
+            <Icon name="image" size={18} />
+            <b>正在压缩照片</b>
+            <span>
+              {progress.done}/{progress.total}
+            </span>
+          </p>
+          <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} aria-label="照片压缩进度">
+            <i style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }} />
+          </div>
+          <small>压到长边 1600、每张约 500KB，上传更快，也更省照片柜</small>
         </div>
       )}
       <input ref={album} type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple hidden onChange={pick} />
@@ -182,24 +203,20 @@ export function PhotoManager({
         {items.length}/{LIMITS.photosMax} 张 · jpg/png/webp，单张 ≤10MB（上传前自动压缩）· 第一张是封面
         {items.length > 1 && '，按住 ⠿ 拖动或用箭头调整顺序'}
       </p>
-      {error && (
-        <p className="field-error" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <PhotoErrors text={error} />}
       <Confirm
         open={askDel !== null}
-        title={`删掉第 ${(askDel ?? 0) + 1} 张照片？`}
+        title="删掉这张照片？"
         body={
           askDel !== null && items[askDel] ? (
             <div className="del-preview">
               <img src={items[askDel].url} alt="" />
-              {askDel === 0 && items.length > 1 && <p>它是封面，删掉后第 2 张会变成封面。</p>}
+              <p>删了就找不回来啦。{askDel === 0 && items.length > 1 ? '它是封面，删掉后下一张会自动变成封面。' : '如果删的是封面，下一张会自动变成封面。'}</p>
             </div>
           ) : null
         }
-        okText="删掉"
-        cancelText="留着"
+        okText="删除"
+        cancelText="再想想"
         danger
         onOk={() => {
           if (askDel !== null && items[askDel]) onRemove(items[askDel].key)
@@ -207,6 +224,28 @@ export function PhotoManager({
         }}
         onCancel={() => setAskDel(null)}
       />
+    </div>
+  )
+}
+
+/** 照片错误：多条时做成“有 N 张照片需要换一下”的编号清单（错误用“；”分隔） */
+function PhotoErrors({ text }: { text: string }) {
+  const list = text.split('；').filter(Boolean)
+  if (list.length <= 1) {
+    return (
+      <p className="field-error" role="alert">
+        {text}
+      </p>
+    )
+  }
+  return (
+    <div className="photo-errors" role="alert">
+      <b>有 {list.length} 张照片需要换一下</b>
+      <ol>
+        {list.map((t, i) => (
+          <li key={i}>{t}</li>
+        ))}
+      </ol>
     </div>
   )
 }

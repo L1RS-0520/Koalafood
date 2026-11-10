@@ -1,16 +1,18 @@
 // P4 编辑页（仅大王）：所有字段 + 照片增删排序 + 食材步骤编辑区；?confirm=1 为「修改后确认」草稿
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { api, ApiError, CHEF_STATUS, isEmptyContent, type Dish, type RecipeContent } from '../api'
+import { api, ApiError, CHEF_STATUS, isEmptyContent, LIMITS, type Dish, type RecipeContent } from '../api'
 import { BasicFields, validateBasics, type BasicErrors, type Basics } from '../components/BasicFields'
 import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
 import { checkFiles, PhotoManager } from '../components/PhotoManager'
+import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/StorageMeter'
 import { cleanContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
 import { BusyOverlay, LeaveGuard, PageLoading, StatePanel, TopBar } from '../components/ui'
 import { useApp } from '../lib/app'
 import { compressAll } from '../lib/compress'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
+import { photoIndexOf, tooLargeText } from '../lib/util'
 
 const snap = (b: Basics, c: RecipeContent) => JSON.stringify([b, cleanContent(c)])
 
@@ -31,6 +33,10 @@ export function EditPage() {
   const [saved, setSaved] = useState(false)
   const [photoBusy, setPhotoBusy] = useState(false)
   const [photoErr, setPhotoErr] = useState<string | null>(null)
+  /** 429：顶部提示条（文字修改照常可保存）；507：弹框 */
+  const [quota, setQuota] = useState(false)
+  const [full, setFull] = useState(false)
+  const [storage] = useStorage(true)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   useTitle(confirmMode ? '修改后确认' : '编辑菜品')
 
@@ -118,8 +124,17 @@ export function EditPage() {
         app.toast(`加了 ${r.files.length} 张照片`, 'ok')
       }
     } catch (e) {
-      app.handleError(e, '照片没传上，再试一次')
-      if (e instanceof ApiError && e.code === 'TOO_LARGE') setPhotoErr('有照片超过了 1MB，后厨收不下，换一张试试')
+      const code = app.handleError(e, '照片没传上，再试一次')
+      if (e instanceof ApiError && e.code === 'TOO_LARGE') {
+        const n = photoIndexOf(e.message)
+        const f = n ? r.files[n - 1] : r.files.find((x) => x.size > LIMITS.uploadMaxBytes)
+        setPhotoErr(`${n ? `新加的第 ${n} 张：` : ''}${tooLargeText(f?.size)}，这次没加上，换一张吧`)
+      }
+      if (code === 'STORAGE_QUOTA') {
+        setQuota(true)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      if (code === 'STORAGE_FULL') setFull(true)
     } finally {
       setPhotoBusy(false)
     }
@@ -198,9 +213,10 @@ export function EditPage() {
           save()
         }}
       >
+        {quota && <QuotaBanner onClose={() => setQuota(false)} />}
         {confirmMode ? (
           <div className="form-card form-card--chef">
-            <ChefLlama pose="idle" size={60} animated={false} />
+            <ChefLlama pose="done" size={60} animated={false} />
             <p>
               改的是厨驼给 <b>「{dish.name}」</b> 写的草稿，点「确认保存」后成为正式菜谱。
             </p>
@@ -214,6 +230,7 @@ export function EditPage() {
                 自己保存后厨驼这次的任务就作废了。
               </p>
             )}
+            <StorageWarn s={storage} />
             <section className="form-card" aria-labelledby="h-photos" id="f-photos">
               <h2 className="form-card-title" id="h-photos">
                 照片
@@ -250,7 +267,12 @@ export function EditPage() {
         </div>
       </form>
       <BusyOverlay show={saving} text="正在保存…" />
-      <LeaveGuard blocker={blocker} text={confirmMode ? '改过的草稿还没确认' : '改动还没保存'} />
+      {confirmMode ? (
+        <LeaveGuard blocker={blocker} title="修改还没保存，要离开吗？" body="这次的修改会丢掉；厨驼的草稿还在，回来可以接着改。" />
+      ) : (
+        <LeaveGuard blocker={blocker} />
+      )}
+      <FullDialog open={full} onClose={() => setFull(false)} />
     </main>
   )
 }

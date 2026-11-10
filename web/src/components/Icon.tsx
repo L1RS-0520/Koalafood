@@ -19,6 +19,9 @@ export type IconName =
   | 'users'
   | 'check'
   | 'star'
+  | 'bowl'
+  | 'crown'
+  | 'alert'
   | 'photos'
   | 'key'
   | 'pencil'
@@ -95,6 +98,19 @@ const P: Record<IconName, ReactElement> = {
       <path d="M3.5 19.5c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2" />
       <circle cx="16.5" cy="9" r="2.6" />
       <path d="M15.5 14.4c2.5-.3 4.6 1.4 5 4.6" />
+    </>
+  ),
+  crown: <path d="M4 17.5h16M5 15l-1.5-8 5 3.5L12 5l3.5 5.5 5-3.5L19 15z" fill="var(--accent)" />,
+  bowl: (
+    <>
+      <path d="M3.5 11h17c0 4.7-3.8 8-8.5 8s-8.5-3.3-8.5-8z" />
+      <path d="M8 7.5c0-1.5 1.5-1.5 1.5-3M12 7.5c0-1.5 1.5-1.5 1.5-3" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M12 3.5l9.5 16.5h-19z" />
+      <path d="M12 10v4.5M12 17.2v.3" />
     </>
   ),
   star: <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z" fill="var(--accent)" />,

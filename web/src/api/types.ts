@@ -65,6 +65,8 @@ export interface DishSummary {
   category: string
   photo_url: string
   photo_count: number
+  /** 可选：后端若在列表里带上总时长，卡片显示 */
+  total_time?: string | null
   chef_status: ChefStatus
   source: DishSource
   created_at: string
@@ -83,6 +85,23 @@ export interface Me {
   email: string | null
   /** = logged_in；前端只看这个决定是否显示写入口 */
   can_edit: boolean
+}
+
+/** 照片柜用量（GET /api/kitchen/storage，接口约定 v2.4.x）；level 未知时按 ok */
+export type StorageLevel = 'ok' | 'warn' | 'danger'
+export interface Storage {
+  store: string
+  photo_count: number
+  capacity: {
+    used_bytes: number
+    limit_bytes: number
+    /** 已用百分比（1 位小数） */
+    percent: number
+    level: StorageLevel
+    /** 大约还能传几张（后端按 500KB 一张算好） */
+    photos_left: number
+  }
+  daily_ops: { used: number; limit: number }
 }
 
 export interface Settings {
@@ -137,6 +156,8 @@ export interface Api {
   confirmDraft(id: string, content?: RecipeContent): Promise<Dish>
   /** 丢弃草稿 → confirmed（正式内容不变，可能为空） */
   discardDraft(id: string): Promise<Dish>
+  /** 照片柜用量；访客/后端没有该接口时返回 null（隐藏用量条） */
+  getStorage(): Promise<Storage | null>
   getSettings(): Promise<Settings>
   updateSettings(s: Settings): Promise<Settings>
 }

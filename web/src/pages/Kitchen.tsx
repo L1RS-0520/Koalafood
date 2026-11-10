@@ -26,7 +26,7 @@ function KitchenClosed() {
         <div className="kitchen-door" aria-hidden="true">
           <span className="kitchen-sign">STAFF ONLY</span>
           <Koala pose="point" size={110} />
-          <ChefLlama pose="idle" size={84} animated={false} />
+          <ChefLlama pose="done" size={84} animated={false} />
         </div>
         <div className="bubble bubble--up">
           <h2>这里是后厨，大王专用</h2>

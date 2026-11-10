@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, CHEF_STATUS, isEmptyContent, LIMITS, POLL_MS, type Dish, type RecipeContent } from '../api'
-import { ChefLlama } from '../components/ChefLlama'
+import { ChefLlama, ChefWriting, Dots } from '../components/ChefLlama'
 import { Gallery } from '../components/Gallery'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
@@ -11,7 +11,7 @@ import { Confirm, Dialog, PageLoading, Spinner, StatePanel, TopBar } from '../co
 import { useApp } from '../lib/app'
 import { categoryTone } from '../lib/category'
 import { usePolling, useTitle } from '../lib/hooks'
-import { cx, len } from '../lib/util'
+import { cx, dateLabel, len } from '../lib/util'
 
 const VISITOR_WAIT = '考拉大王还在整理这道菜的菜谱～'
 
@@ -119,7 +119,7 @@ export function DishPage() {
       !hasOfficial && dish.chef_status !== CHEF_STATUS.confirmed ? (
         <StatePanel pose="taste" title={VISITOR_WAIT} text="过一阵再来看看吧。" className="state-panel--inline" />
       ) : (
-        <RecipeBody content={official} />
+        <RecipeBody content={official} name={dish.name} />
       )
   } else if (pending && !hasOfficial) {
     body = (
@@ -136,16 +136,7 @@ export function DishPage() {
   } else if (isDraft) {
     body = (
       <>
-        <DraftReview
-          dish={dish}
-          busy={busy}
-          chefOn={app.chefEnabled}
-          onConfirm={() => run('confirm', () => api.confirmDraft(dish.id), '确认好啦，正式上菜！')}
-          onEditConfirm={() => nav(`${editHref}?confirm=1`)}
-          onRewrite={() => (setRequest(''), setDlg('rewrite'))}
-          onDiscard={() => setDlg('discard')}
-          editHref={editHref}
-        />
+        <DraftReview dish={dish} />
         {hasOfficial && (
           <details className="official-fold">
             <summary>
@@ -163,6 +154,7 @@ export function DishPage() {
         {pending && <RewritingBanner on={app.chefEnabled} requested={dish.requested_note} editHref={editHref} />}
         <RecipeBody
           content={official}
+          name={dish.name}
           emptyHint="想起来怎么做的时候，随手记几行就好～"
           emptyAction={
             <>
@@ -184,6 +176,10 @@ export function DishPage() {
   }
 
   const showSource = hasOfficial && (owner ? dish.chef_status === CHEF_STATUS.confirmed : true)
+  const draftEmpty = isDraft && (!dish.draft || isEmptyContent(dish.draft))
+  const sourceLine = showSource
+    ? `${dish.source === 'manual' ? '菜谱由大王手写' : '菜谱由厨驼撰写 · 大王确认'} · ${dateLabel(dish.updated_at)}`
+    : null
 
   return (
     <main className="page page--detail">
@@ -209,25 +205,58 @@ export function DishPage() {
           )}
           {showSource && <span className="meta-chip meta-chip--src">{dish.source === 'manual' ? '大王手写' : '厨驼执笔'}</span>}
         </div>
+        {owner && isDraft && (
+          <p className="state-bar state-bar--draft" role="status">
+            <Icon name="alert" size={18} />
+            <b>{draftEmpty ? '厨驼没写出来，等大王决定' : '厨驼交稿啦，等大王确认'}</b>
+            <small>草稿只有你能看到</small>
+          </p>
+        )}
+        {owner && isDraft && <ChefMessage dish={dish} />}
         {dish.note && (
-          <div className="note-say">
-            <Koala pose="taste" size={58} />
-            <p className="bubble bubble--left">
-              <b>大王备注</b>
-              {dish.note}
-            </p>
-          </div>
+          <p className="narration-box">
+            <b>大王备注：</b>
+            {dish.note}
+          </p>
         )}
         {body}
+        {sourceLine && <p className="detail-foot">{sourceLine}</p>}
       </article>
 
       {owner && (
-        <div className="action-bar">
+        <div className={cx('action-bar', isDraft && 'action-bar--grid')}>
           {isDraft ? (
-            <button type="button" className="btn btn--ghost btn--danger-text" onClick={() => setDlg('delete')}>
-              <Icon name="trash" size={18} />
-              删除
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => run('confirm', () => api.confirmDraft(dish.id), '确认好啦，正式上菜！')}
+                disabled={!!busy || draftEmpty}
+                title={draftEmpty ? '空草稿不能直接确认' : undefined}
+              >
+                {busy === 'confirm' ? <Spinner /> : <Icon name="check" size={18} />}
+                确认
+              </button>
+              <button type="button" className="btn btn--green" onClick={() => nav(`${editHref}?confirm=1`)} disabled={!!busy}>
+                <Icon name="pencil" size={18} />
+                {draftEmpty ? '我自己写' : '修改后确认'}
+              </button>
+              {app.chefEnabled ? (
+                <button type="button" className="btn btn--ghost" onClick={() => (setRequest(''), setDlg('rewrite'))} disabled={!!busy}>
+                  <Icon name="refresh" size={18} />
+                  让厨驼重写
+                </button>
+              ) : (
+                <button type="button" className="btn btn--ghost btn--danger-text" onClick={() => setDlg('delete')} disabled={!!busy}>
+                  <Icon name="trash" size={18} />
+                  删除这道菜
+                </button>
+              )}
+              <button type="button" className="btn btn--ghost btn--danger-text" onClick={() => setDlg('discard')} disabled={!!busy}>
+                <Icon name="trash" size={18} />
+                不要了
+              </button>
+            </>
           ) : (
             <>
               <Link className="btn btn--ghost" to={editHref}>
@@ -252,12 +281,12 @@ export function DishPage() {
       <Dialog
         open={dlg === 'rewrite'}
         onClose={() => !busy && setDlg(null)}
-        title={isDraft ? '让厨驼重写？' : hasOfficial ? '让厨驼重写这道菜？' : '交给厨驼写？'}
+        title={hasOfficial || isDraft ? '让厨驼重写？' : '交给厨驼写？'}
         art={<ChefLlama pose="write" size={78} />}
         actions={
           <>
             <button type="button" className="btn btn--ghost" onClick={() => setDlg(null)} disabled={!!busy}>
-              先不了
+              取消
             </button>
             <button
               type="button"
@@ -265,24 +294,24 @@ export function DishPage() {
               disabled={!!busy || len(request) > LIMITS.noteMax}
               onClick={() => run('rewrite', () => api.askChef(dish.id, request.trim() || undefined), '交给厨驼啦，写好会自动出现')}
             >
-              {busy === 'rewrite' && <Spinner />}
-              {isDraft ? '扔掉草稿，重写' : '交给厨驼'}
+              {busy === 'rewrite' ? <Spinner /> : <Icon name="refresh" size={18} />}
+              {hasOfficial || isDraft ? '让厨驼重写' : '交给厨驼'}
             </button>
           </>
         }
       >
         {isDraft ? (
           <p className="warn-line">
-            <b>现在的草稿会被扔掉</b>，厨驼会重新写一份。
+            <b>现在的草稿会被扔掉</b>，厨驼会重新写一份。已确认的正式内容不受影响。
           </p>
         ) : hasOfficial ? (
           <p>新草稿写好、你确认之前，现在的菜谱照常显示，不会丢。</p>
         ) : null}
         <label className="field">
           <span className="field-label">
-            想让厨驼怎么改？ <em>可不填</em>
+            给厨驼的要求 <em>选填</em>
           </span>
-          <textarea className="textarea" rows={3} value={request} placeholder="比如：改成空气炸锅做法、少放油" onChange={(e) => setRequest(e.target.value)} />
+          <textarea className="textarea" rows={3} value={request} placeholder="比如：这次加了土豆，少放油" onChange={(e) => setRequest(e.target.value)} />
           <span className="field-foot">
             <span />
             <span className={cx('counter', len(request) > LIMITS.noteMax && 'over')}>
@@ -299,17 +328,17 @@ export function DishPage() {
         okText="不要了"
         danger
         busy={busy === 'discard'}
-        art={<ChefLlama pose="idle" size={72} animated={false} />}
+        art={<ChefLlama pose="done" size={72} animated={false} />}
         onOk={() => run('discard', () => api.discardDraft(dish.id), '草稿已扔掉')}
         onCancel={() => setDlg(null)}
       />
 
       <Confirm
         open={dlg === 'delete'}
-        title={`确定删除「${dish.name}」？`}
-        body={`这道菜和它的 ${dish.photos.length} 张照片都会被删掉，删了就找不回来了。`}
+        title={`删掉「${dish.name}」？`}
+        body={`菜谱和 ${dish.photos.length} 张照片会一起删除，删了就找不回来啦。`}
         okText="删除"
-        cancelText="留着"
+        cancelText="再想想"
         danger
         busy={busy === 'delete'}
         art={<Koala pose="think" size={80} />}
@@ -323,18 +352,21 @@ export function DishPage() {
   )
 }
 
-/** 待写（没有正式内容）：厨驼写作中 */
+/** 待写（没有正式内容）：厨驼写作中（看照片 → 想 → 写 循环） */
 function ChefAtWork({ on, requested }: { on: boolean; requested: string | null }) {
+  const [sub, setSub] = useState('正在看大王的照片…')
   return (
     <section className={cx('chef-work', !on && 'chef-work--off')} aria-live="polite">
-      <div className="chef-work-art">
-        <ChefLlama pose={on ? 'write' : 'sleep'} size={132} animated={on} />
-      </div>
+      <div className="chef-work-art">{on ? <ChefWriting size={150} onSub={setSub} /> : <ChefLlama pose="off" size={130} />}</div>
       <div className="bubble bubble--up chef-work-bubble">
         {on ? (
           <>
-            <h2>厨驼正在写菜谱…</h2>
-            <p>一般几分钟就好，写好会自动出现在这里，不用刷新。</p>
+            <h2>
+              厨驼正在写菜谱
+              <Dots />
+            </h2>
+            <p className="chef-work-sub">{sub}</p>
+            <p>写好会自动出现在这里，不用刷新。</p>
             {requested && (
               <p className="chef-req">
                 <b>你的要求：</b>
@@ -345,7 +377,7 @@ function ChefAtWork({ on, requested }: { on: boolean; requested: string | null }
         ) : (
           <>
             <h2>厨驼下班啦</h2>
-            <p>「找厨驼写菜谱」已经关掉，这道菜可以改成自己写。</p>
+            <p>「找厨驼写菜谱」已经关掉，这道菜可以自己写。</p>
           </>
         )}
       </div>
@@ -357,7 +389,7 @@ function ChefAtWork({ on, requested }: { on: boolean; requested: string | null }
 function RewritingBanner({ on, requested, editHref }: { on: boolean; requested: string | null; editHref: string }) {
   return (
     <div className={cx('rewrite-banner', !on && 'rewrite-banner--off')} role="status">
-      <ChefLlama pose={on ? 'wok' : 'sleep'} size={54} animated={on} />
+      <ChefLlama pose={on ? 'write' : 'off'} size={54} animated={on} />
       <div>
         <b>{on ? '厨驼正在重写…' : '重写暂停了（厨驼已下班）'}</b>
         <span>
@@ -374,90 +406,36 @@ function RewritingBanner({ on, requested, editHref }: { on: boolean; requested: 
   )
 }
 
-/** 草稿待确认 */
-function DraftReview({
-  dish,
-  busy,
-  chefOn,
-  onConfirm,
-  onEditConfirm,
-  onRewrite,
-  onDiscard,
-  editHref,
-}: {
-  dish: Dish
-  busy: string | null
-  chefOn: boolean
-  onConfirm: () => void
-  onEditConfirm: () => void
-  onRewrite: () => void
-  onDiscard: () => void
-  editHref: string
-}) {
+/** 厨驼留言卡（空草稿时红色警示样式） */
+function ChefMessage({ dish }: { dish: Dish }) {
   const draft = dish.draft
   const empty = !draft || isEmptyContent(draft)
   const msg = draft?.chef_message ?? dish.chef_message
+  if (!msg && !empty) return null
   return (
-    <section className={cx('draft', empty && 'draft--empty')} aria-label="厨驼的草稿">
-      <div className="draft-head">
-        <span className="draft-stamp">草稿待确认</span>
+    <div className={cx('chef-msg', empty && 'chef-msg--alert')}>
+      <span className="chef-msg-avatar">
+        <ChefLlama pose={empty ? 'think' : 'done'} size={56} />
+      </span>
+      <div>
+        <span className="chef-msg-label">{empty ? '厨驼留言 · 这次没写出来' : '厨驼留言'}</span>
+        <p>{msg || '这道菜我没把握写好，大王换个说法再找我，或者自己写吧～'}</p>
       </div>
-      {msg && (
-        <div className={cx('chef-say', empty && 'chef-say--alert')}>
-          <ChefLlama pose="idle" size={64} animated={false} />
-          <p className="bubble bubble--left">
-            <b>厨驼说</b>
-            {msg}
-          </p>
-        </div>
-      )}
-      {empty ? (
-        <>
-          {!msg && <p className="draft-empty-text">厨驼这次交了白卷，换个说法再找他，或者自己写吧。</p>}
-          <div className="draft-actions draft-actions--empty">
-            {chefOn && (
-              <button type="button" className="btn btn--primary btn--lg" onClick={onRewrite} disabled={!!busy}>
-                <Icon name="chef" size={20} />
-                让厨驼重写
-              </button>
-            )}
-            <Link className={cx('btn btn--lg', chefOn ? 'btn--secondary' : 'btn--primary')} to={editHref}>
-              <Icon name="pencil" size={20} />
-              我自己写
-            </Link>
-            <button type="button" className="btn btn--text" onClick={onDiscard} disabled={!!busy}>
-              不要这份草稿
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="draft-body">
-            <RecipeBody content={draft!} />
-          </div>
-          <div className="draft-actions">
-            <button type="button" className="btn btn--primary btn--lg btn--block" onClick={onConfirm} disabled={!!busy}>
-              {busy === 'confirm' ? <Spinner /> : <Icon name="check" size={20} />}
-              确认
-            </button>
-            <div className="draft-actions-row">
-              <button type="button" className="btn btn--secondary" onClick={onEditConfirm} disabled={!!busy}>
-                <Icon name="edit" size={18} />
-                修改后确认
-              </button>
-              {chefOn && (
-                <button type="button" className="btn btn--ghost" onClick={onRewrite} disabled={!!busy}>
-                  <Icon name="refresh" size={18} />
-                  让厨驼重写
-                </button>
-              )}
-            </div>
-            <button type="button" className="btn btn--text" onClick={onDiscard} disabled={!!busy}>
-              不要了
-            </button>
-          </div>
-        </>
-      )}
+    </div>
+  )
+}
+
+/** 草稿预览（绿色虚线框）；空草稿给出下一步提示 */
+function DraftReview({ dish }: { dish: Dish }) {
+  const draft = dish.draft
+  const empty = !draft || isEmptyContent(draft)
+  if (empty) {
+    return <p className="draft-empty-text">这份草稿是空的：可以「让厨驼重写」并补充要求，或者点「我自己写」。</p>
+  }
+  return (
+    <section className="draft-frame" aria-label="草稿预览">
+      <span className="draft-frame-label">草稿预览</span>
+      <RecipeBody content={draft!} name={dish.name} ending={false} />
     </section>
   )
 }

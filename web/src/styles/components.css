@@ -43,6 +43,9 @@
 .btn--secondary {
   --btn-bg: var(--secondary);
 }
+.btn--green {
+  --btn-bg: #7ee0a8;
+}
 .btn--accent {
   --btn-bg: var(--accent);
 }
@@ -191,17 +194,23 @@
   background: var(--tag-green);
   white-space: nowrap;
 }
-.tag--yellow {
-  background: var(--tag-yellow);
+.tag--home {
+  background: #ffe6d6;
 }
-.tag--orange {
-  background: var(--tag-orange);
+.tag--soup {
+  background: #e3f4ec;
 }
-.tag--pink {
-  background: var(--tag-pink);
+.tag--staple {
+  background: #fff1b8;
 }
-.tag--gray {
-  background: var(--tag-gray);
+.tag--snack {
+  background: #ffe3c7;
+}
+.tag--sweet {
+  background: #ffd9e0;
+}
+.tag--other {
+  background: #e8e6f0;
 }
 .chip {
   display: inline-flex;
@@ -289,7 +298,6 @@
   overflow: hidden;
   color: inherit;
   text-decoration: none;
-  transform: rotate(var(--tilt, 0deg));
   transition:
     transform var(--t-fast) var(--ease-pop),
     box-shadow var(--t-press);
@@ -303,11 +311,11 @@
   }
 }
 .card:hover {
-  transform: rotate(0deg) translateY(-3px);
+  transform: translateY(-3px);
   box-shadow: 6px 7px 0 var(--ink);
 }
 .card:active {
-  transform: rotate(var(--tilt, 0deg)) translate(3px, 3px);
+  transform: translate(3px, 3px);
   box-shadow: var(--shadow-press);
 }
 .card-cover {
@@ -338,31 +346,6 @@
   height: 100%;
   color: #fff;
 }
-.card-bubble {
-  position: absolute;
-  left: 8px;
-  top: 8px;
-  z-index: 1;
-  background: #fff;
-  border: var(--line-md);
-  border-radius: 14px;
-  padding: 1px 9px;
-  font-family: var(--font-display);
-  font-size: 14px;
-  line-height: 22px;
-}
-.card-bubble::after {
-  content: '';
-  position: absolute;
-  left: 12px;
-  bottom: -7px;
-  width: 9px;
-  height: 9px;
-  background: #fff;
-  border-right: var(--line-md);
-  border-bottom: var(--line-md);
-  transform: rotate(45deg) skew(10deg, 10deg);
-}
 .card-count {
   position: absolute;
   right: 8px;
@@ -382,19 +365,29 @@
 }
 .card-stamp {
   position: absolute;
-  right: -4px;
-  bottom: 10px;
+  left: 8px;
+  top: 8px;
   z-index: 2;
-  padding: 3px 12px 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 9px 1px 6px;
   background: var(--accent);
-  border: var(--line-md);
-  border-right: 0;
-  border-radius: 10px 0 0 10px;
+  border: var(--line-sm);
+  border-radius: 8px;
   box-shadow: var(--shadow-sm);
-  font-family: var(--font-display);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  transform: rotate(-3deg);
   animation: stamp-in 420ms var(--ease-pop) both;
+}
+.card-stamp i {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--primary);
 }
 @keyframes stamp-in {
   from {
@@ -409,28 +402,54 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 6px;
-  background:
-    repeating-conic-gradient(from 0deg at 50% 70%, rgba(255, 210, 63, 0.38) 0 8deg, transparent 8deg 18deg),
-    rgba(255, 246, 229, 0.62);
+  justify-content: center;
+  gap: 4px;
+  background: #fdf3e1;
+  font-size: 12px;
 }
-.card-chef .llama {
-  margin-bottom: -4px;
+.card-chef-avatar {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: var(--line-md);
+  border-radius: 50%;
+  background: #fff;
+  overflow: hidden;
+}
+.card-chef-avatar .llama {
+  width: 54px !important;
+  margin-top: 10px;
+  animation: llama-bob 1.6s ease-in-out infinite;
+  transform-origin: 50% 90%;
 }
 .card-chef-text {
-  padding: 1px 9px;
-  background: #fff;
-  border: var(--line-sm);
-  border-radius: var(--r-pill);
   font-size: 12px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 16px;
   white-space: nowrap;
 }
+.card-chef .dots {
+  margin: 0;
+  color: var(--text-2);
+}
 .card-chef--off {
-  justify-content: center;
-  background: rgba(238, 238, 242, 0.78);
+  background: #eeeef2;
+}
+.card-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-chef-avatar .llama {
+    animation: none;
+  }
 }
 .card-body {
   padding: 10px 10px 12px;
@@ -512,7 +531,7 @@
 }
 .tab {
   flex: none;
-  min-height: 40px;
+  min-height: 44px;
   padding: 6px 16px;
   border: var(--line-md);
   border-radius: var(--r-pill);
@@ -587,7 +606,7 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(30, 26, 24, 0.45);
+  background: rgba(30, 26, 24, 0.55);
   animation: fade-in var(--t-fast) ease-out both;
 }
 @keyframes fade-in {
@@ -595,16 +614,17 @@
     opacity: 0;
   }
 }
+/* 弹窗（设计/2026-11-10-确认对话框）：宽 330、白底、3px 墨描边 + 6px 硬投影；考拉/厨驼从右上探头；标题 22px 左对齐 */
 .modal {
   position: relative;
-  width: min(100%, 420px);
+  width: min(100%, 330px);
   max-height: calc(100dvh - 40px);
-  overflow: auto;
-  padding: 22px 20px 20px;
+  overflow: visible;
+  padding: 20px 18px 18px;
   background: var(--surface);
   border: var(--line);
-  border-radius: 20px;
-  box-shadow: var(--shadow-lg);
+  border-radius: 18px;
+  box-shadow: 6px 6px 0 var(--ink);
   animation: pop-in 320ms var(--ease-pop) both;
 }
 @keyframes pop-in {
@@ -613,25 +633,26 @@
     opacity: 0;
   }
 }
-.modal--danger {
-  background-image: linear-gradient(var(--surface), var(--surface)), none;
-}
 .modal-art {
-  display: flex;
-  justify-content: center;
-  margin: -6px 0 6px;
+  position: absolute;
+  right: 10px;
+  top: 0;
+  transform: translateY(-78%);
+  pointer-events: none;
+}
+.modal-art img {
+  height: auto;
 }
 .modal-title {
-  text-align: center;
+  padding-right: 56px;
   font-size: 22px;
   line-height: 30px;
 }
 .modal-body {
-  margin-top: 10px;
+  margin-top: 8px;
   color: var(--text-2);
-  font-size: 15px;
-  line-height: 24px;
-  text-align: center;
+  font-size: 14px;
+  line-height: 22px;
 }
 .modal-body .field {
   text-align: left;
@@ -640,7 +661,12 @@
 .modal-actions {
   display: flex;
   gap: 12px;
-  margin-top: 20px;
+  margin-top: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal {
+    animation: none;
+  }
 }
 .modal-actions .btn {
   flex: 1;
@@ -825,161 +851,90 @@
   animation-delay: 0.3s;
 }
 
-/* ========== 厨驼动画 ========== */
+/* ========== 厨驼动画（设计组 4 帧：看照片 1.2s → 想 1.2s → 写 1.6s 循环，交稿帧单独用）========== */
 .llama {
-  overflow: visible;
   flex: none;
+  display: inline-block;
+  object-fit: contain;
+  user-select: none;
 }
-.llama.is-anim .llama-head {
-  transform-origin: 68px 100px;
+.llama--wiggle {
+  transform-origin: 50% 90%;
   animation: llama-bob 1.6s ease-in-out infinite;
 }
-.llama.is-anim .llama-hat {
-  transform-origin: 68px 30px;
-  animation: llama-hat 1.6s ease-in-out infinite;
+.llama--off {
+  filter: grayscale(0.85) opacity(0.7);
 }
-.llama.is-anim .llama-eyes {
-  transform-origin: 68px 55px;
-  animation: blink 4s infinite;
+.llama-stage {
+  position: relative;
+  display: inline-block;
+  flex: none;
 }
-.llama.is-anim .llama-wok {
-  transform-origin: 86px 104px;
-  animation: wok-toss 0.9s ease-in-out infinite;
+.llama-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transform: scale(0.94) translateY(4px);
+  transition:
+    opacity 220ms ease,
+    transform 320ms var(--ease-pop);
 }
-.llama.is-anim .llama-food .f1 {
-  animation: food 0.9s ease-in-out infinite;
+.llama-frame.on {
+  opacity: 1;
+  transform: none;
+  animation: llama-bob 1.6s ease-in-out infinite;
+  transform-origin: 50% 92%;
 }
-.llama.is-anim .llama-food .f2 {
-  animation: food 0.9s ease-in-out 0.12s infinite;
+.dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  vertical-align: middle;
 }
-.llama.is-anim .llama-food .f3 {
-  animation: food 0.9s ease-in-out 0.22s infinite;
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot 1.2s ease-in-out infinite;
 }
-.llama.is-anim .llama-steam path {
-  animation: steam 1.8s ease-in-out infinite;
+.dots i:nth-child(2) {
+  animation-delay: 0.2s;
 }
-.llama.is-anim .llama-steam .s2 {
-  animation-delay: 0.6s;
+.dots i:nth-child(3) {
+  animation-delay: 0.4s;
 }
-.llama.is-anim .llama-pen {
-  transform-origin: 100px 112px;
-  animation: pen 0.8s ease-in-out infinite;
-}
-.llama.is-anim .llama-write .w1,
-.llama.is-anim .llama-write .w2,
-.llama.is-anim .llama-write .w3 {
-  stroke-dasharray: 30;
-  animation: write 2.4s linear infinite;
-}
-.llama.is-anim .llama-write .w2 {
-  animation-delay: 0.8s;
-}
-.llama.is-anim .llama-write .w3 {
-  animation-delay: 1.6s;
-}
-.llama-zzz text {
-  animation: zzz 2.4s ease-in-out infinite;
-}
-.llama-zzz text:nth-child(2) {
-  animation-delay: 0.6s;
-}
-@keyframes llama-bob {
+@keyframes dot {
   0%,
+  80%,
   100% {
-    transform: rotate(-3deg);
+    opacity: 0.25;
+    transform: translateY(0);
   }
-  50% {
-    transform: rotate(3deg) translateY(-1px);
-  }
-}
-@keyframes llama-hat {
-  0%,
-  100% {
-    transform: rotate(2deg);
-  }
-  50% {
-    transform: rotate(-4deg) translateY(-1.5px);
-  }
-}
-@keyframes blink {
-  0%,
-  92%,
-  100% {
-    transform: scaleY(1);
-  }
-  95% {
-    transform: scaleY(0.1);
-  }
-}
-@keyframes wok-toss {
-  0%,
-  100% {
-    transform: rotate(4deg);
-  }
-  45% {
-    transform: rotate(-12deg) translateY(-3px);
-  }
-}
-@keyframes food {
-  0%,
-  100% {
-    transform: translateY(6px);
-  }
-  50% {
-    transform: translateY(-14px) rotate(160deg);
-  }
-}
-@keyframes steam {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-}
-@keyframes pen {
-  0%,
-  100% {
-    transform: translate(0, 0) rotate(0);
-  }
-  25% {
-    transform: translate(-6px, 3px) rotate(-6deg);
-  }
-  50% {
-    transform: translate(-2px, 8px) rotate(2deg);
-  }
-  75% {
-    transform: translate(-8px, 12px) rotate(-4deg);
-  }
-}
-@keyframes write {
-  0% {
-    stroke-dashoffset: 30;
-  }
-  35%,
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-@keyframes zzz {
-  0%,
-  100% {
-    opacity: 0.2;
-    transform: translateY(2px);
-  }
-  50% {
+  40% {
     opacity: 1;
     transform: translateY(-3px);
   }
 }
+@keyframes llama-bob {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg) translateY(-2px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .llama * {
+  .llama,
+  .llama-frame,
+  .llama-frame.on,
+  .dots i {
     animation: none !important;
+    transition: none !important;
   }
 }
 
@@ -1045,7 +1000,7 @@
 .gallery-arrow--r {
   right: -14px;
 }
-@media (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) and (min-width: 640px) {
   .gallery-arrow {
     display: grid;
   }
@@ -1151,7 +1106,7 @@
   transform: translateY(-2px) rotate(-2deg);
   box-shadow: var(--shadow-sm);
 }
-@media (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) and (min-width: 640px) {
   .gallery-dots {
     display: none;
   }
@@ -1370,19 +1325,22 @@
   transform: translateY(-2px) rotate(-2deg);
   box-shadow: 3px 3px 0 var(--ink);
 }
-.chip-pick--green.on {
+.chip-pick--soup.on {
   background: var(--secondary);
 }
-.chip-pick--yellow.on {
+.chip-pick--staple.on {
   background: var(--accent);
 }
-.chip-pick--orange.on {
+.chip-pick--home.on {
   background: var(--primary);
 }
-.chip-pick--pink.on {
+.chip-pick--sweet.on {
   background: var(--blush);
 }
-.chip-pick--gray.on {
+.chip-pick--snack.on {
+  background: #ffb36b;
+}
+.chip-pick--other.on {
   background: #d6d7de;
 }
 .is-invalid .chip-pick {

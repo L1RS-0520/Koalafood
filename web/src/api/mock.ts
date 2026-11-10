@@ -1,15 +1,19 @@
 // 浏览器内置 mock 后端（VITE_MOCK=1）：字段、路径语义与 docs/接口约定.md v2.3 一致，数据存 localStorage，刷新不丢。
 // 模拟规则：pending 满 20 秒自动出示例草稿；菜名含「失败」则出带 chef_message 的空草稿；菜名含「塞满」上传返回 429 STORAGE_QUOTA；
-// 开发开关（localStorage）：koala-canteen:mock:can_edit = "0" 切访客视角；koala-canteen:mock:chef-delay 改出稿秒数（毫秒）。
+// 开发开关（localStorage）：koala-canteen:mock:can_edit = "0" 切访客视角；koala-canteen:mock:chef-delay 改出稿时间（毫秒）；
+// koala-canteen:mock:storage-used 覆盖已用字节（≥996147200 时上传返回 507 STORAGE_FULL）；koala-canteen:mock:ops-today 覆盖当天写入次数（上限 1000，≥1000 时上传/追加照片返回 429）。
+// 菜名含「塞满」→ 429 STORAGE_QUOTA；含「超大」→ 413 TOO_LARGE（模拟第 1 张 1,030KB）。
 import { CHEF_STATUS, LIMITS } from './contract'
 import { mockDraft } from './mockChef'
 import { makeSeed, SEED_PHOTOS, type MockDish, type MockPhoto } from './mockSeed'
-import { normDish, normSummary } from './normalize'
+import { normDish, normStorage, normSummary } from './normalize'
 import { ApiError, CATEGORIES, type Api, type Dish, type DishSummary, type RecipeContent } from './types'
 
 const KEY = 'koala-canteen:mock:v3'
 const CAN_EDIT_KEY = 'koala-canteen:mock:can_edit'
 const DELAY_KEY = 'koala-canteen:mock:chef-delay'
+const STORAGE_KEY = 'koala-canteen:mock:storage-used'
+const OPS_KEY = 'koala-canteen:mock:ops-today'
 
 interface Store {
   dishes: MockDish[]
@@ -23,7 +27,7 @@ function load(): Store {
   } catch {
     /* 坏数据就重置 */
   }
-  const s: Store = { dishes: makeSeed(), settings: { chef_enabled: true } }
+  const s: Store = { dishes: makeSeed(), settings: { chef_enabled: localStorage.getItem('koala-canteen:mock:chef-off') !== '1' } }
   save(s)
   return s
 }
@@ -76,7 +80,7 @@ function toDish(d: MockDish): Dish {
   })
 }
 function toSummary(d: MockDish): DishSummary {
-  return normSummary({ ...d, photo_url: d.photos[0] ? photoUrl(d.photos[0]) : '', photo_count: d.photos.length })
+  return normSummary({ ...d, total_time: d.total_time, photo_url: d.photos[0] ? photoUrl(d.photos[0]) : '', photo_count: d.photos.length })
 }
 
 function find(s: Store, id: string): MockDish {
@@ -98,6 +102,22 @@ function checkPhotos(files: File[], existing = 0) {
     if (!(LIMITS.photoTypes as readonly string[]).includes(f.type))
       throw new ApiError('BAD_TYPE', '只支持 jpg、png、webp 格式的照片', 415)
     if (f.size > LIMITS.uploadMaxBytes) throw new ApiError('TOO_LARGE', '照片太大啦，单张不能超过 1MB', 413)
+  }
+}
+
+/** 写照片前的额度判断：先容量（507）再当天次数（429），都在写入前，不留半条 */
+async function storageGate(name: string) {
+  if (Number(localStorage.getItem(STORAGE_KEY)) >= 996_147_200) {
+    await sleep(400)
+    throw new ApiError('STORAGE_FULL', '照片柜满啦，删掉一些旧照片才能继续上传～', 507)
+  }
+  if (name.includes('塞满') || Number(localStorage.getItem(OPS_KEY)) >= 1000) {
+    await sleep(400)
+    throw new ApiError('STORAGE_QUOTA', '今天食堂的照片柜塞满啦，明天再来传吧～', 429)
+  }
+  if (name.includes('超大')) {
+    await sleep(300)
+    throw new ApiError('TOO_LARGE', '第 1 张照片超过 1MB', 413)
   }
 }
 
@@ -181,11 +201,7 @@ export const mockApi: Api = {
     validateText(input.name, input.category, input.note)
     checkPhotos(input.photos)
     if (input.mode === 'chef') requireChef(s)
-    // 模拟免费额度满（菜名含「塞满」）：429，菜不入库
-    if (input.name.includes('塞满')) {
-      await sleep(500)
-      throw new ApiError('STORAGE_QUOTA', 'storage quota exceeded', 429)
-    }
+    await storageGate(input.name)
     const refs = await Promise.all(input.photos.map(compress))
     await sleep(700)
     const t = now()
@@ -245,6 +261,7 @@ export const mockApi: Api = {
     const s = load()
     const d = find(s, id)
     checkPhotos(files, d.photos.length)
+    await storageGate(d.name)
     const refs = await Promise.all(files.map(compress))
     await lag()
     d.photos.push(...refs.map((ref) => ({ id: uid(), ref })))
@@ -335,6 +352,31 @@ export const mockApi: Api = {
     Object.assign(d, { chef_status: CHEF_STATUS.confirmed, draft: null, requested_note: null, chef_requested_at: null, updated_at: now() })
     save(s)
     return toDish(d)
+  },
+
+  async getStorage() {
+    await lag()
+    if (!canEdit()) return null
+    const s = load()
+    const photos = s.dishes.flatMap((d) => d.photos)
+    // 示例图按 130KB 计，上传的按 dataURL 长度估算；可用开发开关覆盖已用字节数（截图 80%/95% 用）
+    const real = photos.reduce((n, p) => n + (p.ref.startsWith('seed:') ? 130_000 : Math.round(p.ref.length * 0.75)), 0)
+    const used = Number(localStorage.getItem(STORAGE_KEY)) || real
+    const limit = 996_147_200
+    const percent = Math.round((used / limit) * 1000) / 10
+    return normStorage({
+      store: 'mock',
+      photo_count: photos.length,
+      capacity: {
+        used_bytes: used,
+        limit_bytes: limit,
+        percent,
+        // 档位按原始比例判断（percent 只是四舍五入的显示值）
+        level: used / limit >= 0.95 ? 'danger' : used / limit >= 0.8 ? 'warn' : 'ok',
+        photos_left: Math.max(0, Math.floor((limit - used) / 512_000)),
+      },
+      daily_ops: { used: Number(localStorage.getItem(OPS_KEY)) || 12, limit: 1000 },
+    })
   },
 
   async getSettings() {

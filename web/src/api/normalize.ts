@@ -1,6 +1,6 @@
 // 把后端/AI 返回的数据收拾成前端可放心用的形状；草稿格式不对时抛 AI_BAD_FORMAT
-import { CHEF_STATUS, SOURCE, STATUS_ALIASES, STATUS_FIELD, STATUS_FIELD_FALLBACKS } from './contract'
-import type { ChefStatus, Dish, Photo, DishSource, DishSummary, Draft, Ingredient, RecipeContent, Step } from './types'
+import { STORAGE, CHEF_STATUS, SOURCE, STATUS_ALIASES, STATUS_FIELD, STATUS_FIELD_FALLBACKS } from './contract'
+import type { Storage, StorageLevel, ChefStatus, Dish, Photo, DishSource, DishSummary, Draft, Ingredient, RecipeContent, Step } from './types'
 
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '')
 const strOrNull = (v: unknown): string | null => {
@@ -106,6 +106,7 @@ export function normSummary(raw: unknown): DishSummary {
     category: str(o.category) || '其他',
     photo_url: str(o.photo_url),
     photo_count: typeof o.photo_count === 'number' ? o.photo_count : 1,
+    total_time: strOrNull(o.total_time),
     chef_status: normStatus(o),
     source: normSource(o.source),
     created_at: str(o.created_at),
@@ -129,4 +130,30 @@ export function splitIngredientLine(line: string): Ingredient {
   m = s.match(/^(.+?)(适量|少许|若干|一点|一把|一勺|半勺)$/)
   if (m) return { name: m[1].trim(), amount: m[2] }
   return { name: s, amount: '' }
+}
+
+/** 用量：按 {capacity, daily_ops} 读；也兼容早先的平铺字段；关键字段缺失时返回 null（隐藏用量条） */
+export function normStorage(raw: unknown): Storage | null {
+  const o = (raw ?? {}) as Record<string, unknown>
+  const num = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : null)
+  const cap = (o.capacity ?? {}) as Record<string, unknown>
+  const ops = (o.daily_ops ?? {}) as Record<string, unknown>
+  const used = num(cap.used_bytes) ?? num(o.used_bytes)
+  if (used === null) return null
+  const limit = num(cap.limit_bytes) ?? num(o.limit_bytes) ?? STORAGE.defaultLimit
+  const percent = num(cap.percent) ?? num(o.used_pct) ?? (limit ? Math.round((used / limit) * 1000) / 10 : 0)
+  const lv = cap.level
+  const level: StorageLevel = lv === 'warn' || lv === 'danger' ? lv : 'ok'
+  return {
+    store: str(o.store),
+    photo_count: num(o.photo_count) ?? 0,
+    capacity: {
+      used_bytes: used,
+      limit_bytes: limit,
+      percent,
+      level,
+      photos_left: num(cap.photos_left) ?? Math.max(0, Math.floor((limit - used) / STORAGE.estPhotoBytes)),
+    },
+    daily_ops: { used: num(ops.used) ?? num(o.ops_today) ?? 0, limit: num(ops.limit) ?? num(o.ops_limit) ?? 0 },
+  }
 }

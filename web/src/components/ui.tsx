@@ -142,26 +142,29 @@ export function Confirm({
 }
 
 /** 离开前未保存提示（配合 useUnsavedGuard） */
+/** 离开未保存（设计/2026-11-10-确认对话框 ①②）：左「继续编辑」，右红「不保存，离开」 */
 export function LeaveGuard({
   blocker,
-  text = '草稿还没保存',
-  body = '离开后刚才改的内容就没了哦。',
-  okText = '不要了，离开',
+  title = '还没保存，要离开吗？',
+  body = '刚才改的内容还没保存，离开就没了哦。',
+  okText = '不保存，离开',
+  cancelText = '继续编辑',
 }: {
   blocker: { state: string; proceed?: () => void; reset?: () => void }
-  text?: string
+  title?: string
   body?: string
   okText?: string
+  cancelText?: string
 }) {
   return (
     <Confirm
       open={blocker.state === 'blocked'}
-      title={`${text}，确定离开吗？`}
+      title={title}
       body={body}
       okText={okText}
-      cancelText="留下继续写"
+      cancelText={cancelText}
       danger
-      art={<Koala pose="think" size={84} />}
+      art={<Koala pose="think" size={70} />}
       onOk={() => blocker.proceed?.()}
       onCancel={() => blocker.reset?.()}
     />

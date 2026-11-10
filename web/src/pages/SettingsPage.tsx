@@ -4,6 +4,7 @@ import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
 import { Confirm, TopBar } from '../components/ui'
 import { resetMock } from '../api/mock'
+import { StorageMeter, useStorage } from '../components/StorageMeter'
 import { useApp } from '../lib/app'
 import { useTitle } from '../lib/hooks'
 import { cx } from '../lib/util'
@@ -14,6 +15,7 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const [askReset, setAskReset] = useState(false)
   const on = app.chefEnabled
+  const [storage] = useStorage(app.canEdit)
   const toggle = async () => {
     setBusy(true)
     await app.setChefEnabled(!on)
@@ -24,7 +26,7 @@ export function SettingsPage() {
       <TopBar title="设置" />
       <section className={cx('setting-card', !on && 'setting-card--off')}>
         <div className="setting-art">
-          <ChefLlama pose={on ? 'wok' : 'sleep'} size={120} animated={on} />
+          <ChefLlama pose={on ? 'write' : 'off'} size={120} animated={on} />
           <span className={cx('setting-sign', on ? 'on' : 'off')}>{on ? '营业中' : '下班了'}</span>
         </div>
         <div className="setting-row">
@@ -46,6 +48,8 @@ export function SettingsPage() {
           </button>
         </div>
       </section>
+
+      <StorageMeter s={storage} />
 
       <section className="setting-foot">
         {app.email && <p>已登录：{app.email}</p>}

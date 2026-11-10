@@ -7,13 +7,14 @@ import { ChefLlama } from '../components/ChefLlama'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
 import { checkFiles, PhotoManager, type PhotoItem } from '../components/PhotoManager'
+import { FullDialog, QuotaBanner, StorageWarn, useStorage } from '../components/StorageMeter'
 import { cleanContent, emptyContent, RecipeEditor, type EditorMode } from '../components/RecipeEditor'
-import { BusyOverlay, Confirm, LeaveGuard, TopBar } from '../components/ui'
+import { BusyOverlay, Confirm, LeaveGuard, TopBar, Spinner } from '../components/ui'
 import { useApp } from '../lib/app'
 import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { clearDraft, hasText, loadPhotos, loadText, savePhotos, saveText } from '../lib/uploadDraft'
 import { compressAll } from '../lib/compress'
-import { cx } from '../lib/util'
+import { cx, photoIndexOf, tooLargeText } from '../lib/util'
 
 interface LocalPhoto extends PhotoItem {
   file: File
@@ -33,6 +34,11 @@ export function UploadPage() {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const tried = useRef(false)
+  const [storage, reloadStorage] = useStorage(app.canEdit)
+  /** 429：顶部提示条；507：弹框；413：标在对应那张上 */
+  const [quota, setQuota] = useState(false)
+  const [full, setFull] = useState(false)
+  const [serverBad, setServerBad] = useState<Record<string, string>>({})
 
   // 厨驼关掉时只有手写
   const effMode: CreateMode = app.chefEnabled ? mode : CREATE_MODE.manual
@@ -105,6 +111,11 @@ export function UploadPage() {
     setPhotos((ps) => {
       const p = ps.find((x) => x.key === key)
       if (p) URL.revokeObjectURL(p.url)
+      setServerBad((m) => {
+        const n = { ...m }
+        delete n[key]
+        return n
+      })
       return ps.filter((x) => x.key !== key)
     })
   const movePhoto = (from: number, to: number) =>
@@ -170,14 +181,31 @@ export function UploadPage() {
     } catch (err) {
       const code = app.handleError(err, '上传没成功，再试一次')
       if (code === 'STORAGE_QUOTA') {
-        setPhotoErr('今天食堂的照片柜塞满啦，明天再来传吧～ 填好的内容已经帮你存在本机，明天打开上传页还在。')
+        setQuota(true)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      if (code === 'STORAGE_FULL') {
+        setFull(true)
+        reloadStorage()
       }
       if (code === 'CHEF_DISABLED') {
         // 厨驼被关了：自动切手写，填的东西都在
         setMode(CREATE_MODE.manual)
       }
       if (err instanceof ApiError && (err.code === 'BAD_TYPE' || err.code === 'TOO_LARGE')) {
-        setPhotoErr(err.code === 'TOO_LARGE' ? '有照片超过了 1MB，后厨收不下，删掉它重新选一次试试' : err.message)
+        if (err.code === 'TOO_LARGE') {
+          // 标出是第几张：优先用后端 message 里的“第 N 张”，否则找本地超过 1MB 的
+          const n = photoIndexOf(err.message)
+          const idx = n ? [n - 1] : photos.map((p, i) => (p.file.size > LIMITS.uploadMaxBytes ? i : -1)).filter((i) => i >= 0)
+          const marks: Record<string, string> = {}
+          idx.forEach((i) => photos[i] && (marks[photos[i].key] = '超过 1MB'))
+          setServerBad(marks)
+          setPhotoErr(
+            idx.length
+              ? idx.map((i) => `第 ${i + 1} 张：${tooLargeText(photos[i]?.file.size)}，删掉换一张吧`).join('；')
+              : tooLargeText(null),
+          )
+        } else setPhotoErr(err.message)
         document.getElementById('f-photos')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     } finally {
@@ -186,9 +214,11 @@ export function UploadPage() {
   }
 
   const photoItems = useMemo(
-    () => photos.map(({ key, url, file }) => ({ key, url, bad: tried.current ? badOf(file) : null })),
-    [photos, errors], // eslint-disable-line react-hooks/exhaustive-deps
+    () => photos.map(({ key, url, file }) => ({ key, url, size: file.size, bad: serverBad[key] ?? (tried.current ? badOf(file) : null) })),
+    [photos, errors, serverBad], // eslint-disable-line react-hooks/exhaustive-deps
   )
+
+  const badCount = photoItems.filter((p) => p.bad).length
 
   return (
     <main className="page page--form">
@@ -210,6 +240,8 @@ export function UploadPage() {
           submit()
         }}
       >
+        {quota && <QuotaBanner onClose={() => setQuota(false)} />}
+        <StorageWarn s={storage} />
         <section className="form-card" id="f-photos" aria-labelledby="h-photos">
           <h2 className="form-card-title" id="h-photos">
             <span className="step-badge">1</span>拍下这道菜 <i className="req">至少 1 张</i>
@@ -282,8 +314,15 @@ export function UploadPage() {
         </section>
 
         <div className="submit-bar">
-          <button type="submit" className="btn btn--primary btn--lg btn--block" disabled={busy}>
-            {effMode === CREATE_MODE.chef ? (
+          <button type="submit" className="btn btn--primary btn--lg btn--block" disabled={busy || !!progress || badCount > 0}>
+            {progress ? (
+              <>
+                <Spinner />
+                正在压缩照片…（{progress.done}/{progress.total}）
+              </>
+            ) : badCount > 0 ? (
+              <>先换掉 {badCount} 张有问题的照片</>
+            ) : effMode === CREATE_MODE.chef ? (
               <>
                 <Icon name="chef" size={22} />
                 交给厨驼写！
@@ -298,7 +337,7 @@ export function UploadPage() {
         </div>
       </form>
       <BusyOverlay show={busy} text={effMode === CREATE_MODE.chef ? '正在把菜送进后厨…' : '正在上菜…'} />
-      <LeaveGuard blocker={blocker} text="这道菜还没上传" body="填好的内容会先存在本机，下次打开上传页还在。" okText="先离开" />
+      <LeaveGuard blocker={blocker} title="这道菜还没上传，要离开吗？" body="填好的内容会先存在本机，下次打开上传页还在。" okText="先离开" />
       <Confirm
         open={askClear}
         title="清空这次填的内容？"
@@ -308,6 +347,7 @@ export function UploadPage() {
         onOk={clearAll}
         onCancel={() => setAskClear(false)}
       />
+      <FullDialog open={full} onClose={() => setFull(false)} />
     </main>
   )
 }

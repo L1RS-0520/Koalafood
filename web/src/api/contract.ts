@@ -67,6 +67,8 @@ export const PATHS = {
   confirm: (id: string) => w(`${d(id)}/confirm`),
   discardDraft: (id: string) => w(`${d(id)}/discard-draft`),
   updateSettings: w('/settings'),
+  /** 照片柜用量（仅大王；访客 401） */
+  storage: w('/storage'),
   // —— 本地开发模拟登录（worker .dev.vars 里 DEV_AUTH=1 才有，否则 404）——
   devLogin: '/dev/login',
   devLogout: '/dev/logout',
@@ -97,3 +99,27 @@ export const LIMITS = {
   photosMax: 9,
   captionMax: 12,
 } as const
+
+/** 照片柜用量（GET /api/kitchen/storage）：档位直接用后端的 capacity.level */
+export const STORAGE = {
+  /** 当天写入次数提醒阈值（daily_ops.used / limit） */
+  opsWarnPct: 80,
+  /** mock 估算“还能传几张”：每张 500KB（512000 字节） */
+  estPhotoBytes: 512_000,
+  /** 后端没给 limit_bytes 时的默认值（950MB） */
+  defaultLimit: 996_147_200,
+} as const
+
+/** 存储提示文案（需求 v2.4.4 §12-24 + 设计 2026-11-10-存储与限额状态） */
+export const STORAGE_TEXT = {
+  warn: '照片柜已经用了 80%，可以删掉一些旧照片啦',
+  danger: '照片柜快满啦（已用 95%），赶紧删掉一些旧照片吧',
+  hint: '在菜品编辑页可以删掉不要的照片',
+  quotaHint: '已填写的内容都还在，不用重填；不加新照片的修改照常可以保存',
+} as const
+
+/** 照片存储相关错误码 → 固定文案（不显示后端 message） */
+export const STORAGE_ERROR_TEXT: Record<string, string> = {
+  STORAGE_QUOTA: '今天食堂的照片柜塞满啦，明天再来传吧～',
+  STORAGE_FULL: '照片柜满啦，删掉一些旧照片才能继续上传～',
+}

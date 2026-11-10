@@ -1,4 +1,4 @@
-// 菜谱展示：食材便签清单 → 步骤漫画分格 → 小贴士旁白框
+// 菜谱展示（设计/详情页-访客长图）：考拉旁白 → 食材漫画小格 → 步骤漫画分格 → 小贴士便利贴 → “开饭啦！”
 import { useState } from 'react'
 import type { Ingredient, RecipeContent, Step } from '../api'
 import { cx, stepCaption, stepKind } from '../lib/util'
@@ -6,28 +6,28 @@ import { Icon } from './Icon'
 import { Koala } from './Koala'
 import { StepArt } from './StepArt'
 
+/** 食材 = 漫画小格：白色漫画页里两列略斜切的小格，上名称下用量；点一下划掉（备菜不漏） */
 export function IngredientNote({ items }: { items: Ingredient[] }) {
   const [got, setGot] = useState<Set<number>>(new Set())
   if (items.length === 0) {
     return (
-      <div className="note-paper note-paper--empty">
-        <span className="tape tape--c" aria-hidden="true" />
+      <div className="ing-page ing-page--empty">
         <p>还没写食材</p>
       </div>
     )
   }
   return (
-    <div className="note-paper">
-      <span className="tape tape--c" aria-hidden="true" />
-      <ul className="ing-list">
+    <div className="ing-page">
+      <ul className="ing-grid">
         {items.map((it, i) => {
           const on = got.has(i)
           return (
             <li key={`${it.name}-${i}`}>
               <button
                 type="button"
-                className={cx('ing', on && 'ing--on')}
+                className={cx('ing-cell', `ing-cell--k${i % 4}`, on && 'on')}
                 aria-pressed={on}
+                aria-label={`${it.name} ${it.amount || '适量'}${on ? '，已备好' : ''}`}
                 onClick={() =>
                   setGot((s) => {
                     const n = new Set(s)
@@ -37,29 +37,27 @@ export function IngredientNote({ items }: { items: Ingredient[] }) {
                   })
                 }
               >
-                <span className="ing-box" aria-hidden="true">
-                  {on && <Icon name="check" size={16} />}
-                </span>
                 <span className="ing-name">{it.name}</span>
-                <span className="ing-dots" aria-hidden="true" />
                 <span className="ing-amt">{it.amount || '适量'}</span>
+                {on && (
+                  <span className="ing-ok" aria-hidden="true">
+                    <Icon name="check" size={14} />
+                  </span>
+                )}
               </button>
             </li>
           )
         })}
       </ul>
-      <p className="note-hint">点一下打勾，备菜不漏～</p>
     </div>
   )
 }
 
-/** 每格的版式：每 3 格里有 1 格通栏，形成错落的漫画页 */
+/** 版式：“宽-窄窄”循环（第 1、4、7… 步通栏，其余两两并排；最后落单的也通栏） */
 function panelSpan(i: number, total: number): 'wide' | 'half' {
   if (total <= 2) return 'wide'
   if (i % 3 === 0) return 'wide'
-  // 最后一格若落单，也通栏
-  const posInRow = (i % 3) - 1 // 0 或 1
-  if (posInRow === 0 && i === total - 1) return 'wide'
+  if (i % 3 === 1 && i === total - 1) return 'wide'
   return 'half'
 }
 
@@ -76,15 +74,13 @@ export function ComicPanels({ steps }: { steps: Step[] }) {
             className={cx('panel', `panel--${span}`, `panel--t${i % 4}`, fire && 'panel--fire')}
             style={{ '--i': i } as React.CSSProperties}
           >
-            <span className="panel-no" aria-label={`第 ${i + 1} 步`}>
-              {i + 1}
-            </span>
-            <div className="panel-bubble">{caption}</div>
             <div className="panel-art">
-              <StepArt kind={stepKind(s.text, i, steps.length)} />
-            </div>
-            <p className="panel-text">{s.text}</p>
-            {(s.heat || s.time) && (
+              <StepArt kind={stepKind(s.text, i, steps.length)} index={i} />
+              <span className="panel-no" aria-label={`第 ${i + 1} 步`}>
+                {i + 1}
+              </span>
+              {caption && <div className="panel-bubble">{caption}</div>}
+              {(s.heat || s.time) && (
               <div className="panel-tags">
                 {s.heat && (
                   <span className="chip chip--heat">
@@ -99,7 +95,9 @@ export function ComicPanels({ steps }: { steps: Step[] }) {
                   </span>
                 )}
               </div>
-            )}
+              )}
+            </div>
+            <p className="panel-text">{s.text}</p>
           </li>
         )
       })}
@@ -123,49 +121,90 @@ export function EmptyPanels({ text = '还没写步骤', hint, action }: { text?:
   )
 }
 
+/** 小贴士：微微倾斜的便利贴 */
 export function Tips({ tips }: { tips: string[] }) {
   if (!tips.length) return null
   return (
-    <div className="tips">
-      {tips.map((t, i) => (
-        <p key={i} className="narration">
-          <b>小贴士{tips.length > 1 ? ` ${i + 1}` : ''}</b>
-          {t}
-        </p>
-      ))}
+    <section className="sec" aria-labelledby="sec-tips">
+      <h2 className="sec-title" id="sec-tips">
+        <Icon name="star" size={20} />
+        考拉小贴士
+      </h2>
+      <ul className="tips">
+        {tips.map((t, i) => (
+          <li key={i} className={cx('sticky', `sticky--k${i % 3}`)}>
+            <i aria-hidden="true" />
+            {t}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** 结尾一格“开饭啦！” */
+export function EndPanel() {
+  return (
+    <div className="end-panel" aria-hidden="true">
+      <Koala pose="happy" size={150} />
+      <b>开饭啦！</b>
     </div>
   )
 }
 
-/** 完整内容（食材 + 步骤 + 贴士）。emptyAction：全空时空白格里放的按钮 */
+const GUIDES = ['先看看要准备什么～', '材料备齐就开工！', '跟着我一步步来～', '今天也要好好吃饭！']
+
+/** 完整内容（考拉旁白 + 食材 + 步骤 + 贴士 + 开饭啦）。emptyAction：全空时空白格里放的按钮 */
 export function RecipeBody({
   content,
+  name,
   emptyHint,
   emptyAction,
+  ending = true,
 }: {
   content: RecipeContent
+  name?: string
   emptyHint?: string
   emptyAction?: React.ReactNode
+  ending?: boolean
 }) {
+  const hasSteps = content.steps.length > 0
+  const guide = GUIDES[(name?.length ?? 0) % GUIDES.length]
   return (
     <>
+      {name && (content.ingredients.length > 0 || hasSteps) && (
+        <div className="koala-say">
+          <Koala pose="wave" size={60} />
+          <p className="bubble bubble--left">
+            今天做{name}！
+            <br />
+            {guide}
+          </p>
+        </div>
+      )}
       <section className="sec" aria-labelledby="sec-ing">
         <h2 className="sec-title" id="sec-ing">
-          <span className="sec-mark" aria-hidden="true" />
-          需要准备的食材
-          {content.ingredients.length > 0 && <span className="sec-count">{content.ingredients.length} 样</span>}
+          <Icon name="bowl" size={20} />
+          食材
+          <span className="sec-sfx" aria-hidden="true">
+            READY?
+          </span>
+          {content.ingredients.length > 0 && <span className="sec-count">{content.ingredients.length} 样 · 点一下划掉</span>}
         </h2>
         <IngredientNote items={content.ingredients} />
       </section>
       <section className="sec" aria-labelledby="sec-steps">
         <h2 className="sec-title" id="sec-steps">
-          <span className="sec-mark sec-mark--green" aria-hidden="true" />
-          做法漫画
-          {content.steps.length > 0 && <span className="sec-count">{content.steps.length} 格</span>}
+          <Icon name="pencil" size={20} />
+          步骤
+          <span className="sec-sfx sec-sfx--green" aria-hidden="true">
+            SIZZLE!
+          </span>
         </h2>
-        {content.steps.length ? <ComicPanels steps={content.steps} /> : <EmptyPanels hint={emptyHint} action={emptyAction} />}
-        <Tips tips={content.tips} />
+        {hasSteps ? <ComicPanels steps={content.steps} /> : <EmptyPanels hint={emptyHint} action={emptyAction} />}
       </section>
+      <Tips tips={content.tips} />
+      {ending && hasSteps && <EndPanel />}
     </>
   )
 }

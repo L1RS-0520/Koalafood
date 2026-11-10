@@ -87,3 +87,26 @@ export function formatBytes(n: number): string {
 export function cx(...xs: (string | false | null | undefined)[]): string {
   return xs.filter(Boolean).join(' ')
 }
+
+/** “2026-11-09” 形式的日期（本地时区） */
+export function dateLabel(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(+d)) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/** 1,030KB 形式（1024 进制，向上取整，千分位） */
+export function kb(n: number): string {
+  return `${Math.ceil(n / 1024).toLocaleString('en-US')}KB`
+}
+/** 413 TOO_LARGE 文案（需求 v2.4.4）：照片太大了（1,030KB），上限 1,024KB */
+export function tooLargeText(size?: number | null): string {
+  // 只有确实超过 1MB 才写出大小（避免出现“3KB 太大”这种自相矛盾的话）
+  return size && size > 1_048_576 ? `照片太大了（${kb(size)}），上限 1,024KB` : '照片太大了，上限 1,024KB'
+}
+/** 从后端 message 里取“第 N 张”（1 起） */
+export function photoIndexOf(message: string): number | null {
+  const m = /第\s*(\d+)\s*张/.exec(message)
+  return m ? Number(m[1]) : null
+}

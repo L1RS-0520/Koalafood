@@ -1,8 +1,6 @@
 // 全局状态：登录（can_edit）、设置（chef_enabled）、提示条
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api, ApiError, IS_MOCK, KITCHEN_LOGIN_ROUTE } from '../api'
-
-export const STORAGE_QUOTA_TEXT = '今天食堂的照片柜塞满啦，明天再来传吧～'
+import { api, ApiError, IS_MOCK, KITCHEN_LOGIN_ROUTE, STORAGE_ERROR_TEXT } from '../api'
 
 type ToastKind = 'ok' | 'err' | 'info'
 interface Toast {
@@ -73,16 +71,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (e.status === 401 || e.code === 'UNAUTHORIZED') {
           setCanEdit(false)
           toast('登录过期了，大王请重新登录', 'err')
-        } else if (e.code === 'STORAGE_QUOTA' || e.status === 429) {
-          // 按码映射产品文案，不显示后端 message
-          toast(STORAGE_QUOTA_TEXT, 'err')
+        } else if (STORAGE_ERROR_TEXT[e.code] || e.status === 429 || e.status === 507) {
+          // 429 顶部提示条 / 507 弹框，由页面自己显示（不弹 toast，不显示后端 message）
+        } else if (e.code === 'TOO_LARGE') {
+          // 413：上传/编辑页把“照片太大了（xxxKB），上限 1,024KB”标在对应那张上
         } else if (e.code === 'CHEF_DISABLED') {
           setChef(false)
           toast(e.message, 'err')
         } else {
           toast(e.message || fallback, 'err')
         }
-        return e.code
+        return e.status === 507 ? 'STORAGE_FULL' : e.status === 429 ? 'STORAGE_QUOTA' : e.code
       }
       toast(fallback, 'err')
       return 'UNKNOWN'

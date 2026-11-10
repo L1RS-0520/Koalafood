@@ -1,13 +1,12 @@
-// P1 首页 / 菜品墙
+// P1 首页 / 分类浏览（设计/2026-11-09-首页分类页.png）：手机顶部横滑分类，桌面左侧分类栏
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ALL, api, CATEGORIES, CHEF_STATUS, POLL_MS, type DishSummary } from '../api'
 import { CategoryTabs } from '../components/CategoryTabs'
-import { ChefLlama } from '../components/ChefLlama'
 import { DishCard, DishCardSkeleton } from '../components/DishCard'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
-import { StatePanel } from '../components/ui'
+import { Confirm, StatePanel } from '../components/ui'
 import logo from '../assets/logo.webp'
 import { useApp } from '../lib/app'
 import { usePolling, useTitle } from '../lib/hooks'
@@ -50,6 +49,13 @@ export function HomePage() {
     load()
   }, [load])
 
+  const [bye, setBye] = useState(false)
+  const drafts = dishes?.filter((d) => d.chef_status === CHEF_STATUS.draft).length ?? 0
+  const greeting = app.canEdit
+    ? drafts
+      ? `大王回来啦！${drafts} 道草稿等你确认～`
+      : '大王回来啦！今天想记哪道菜？'
+    : '欢迎来考拉食堂！大王做过的菜都在这里～'
   const hasPending = !!dishes?.some((d) => d.chef_status === CHEF_STATUS.pending)
   usePolling(() => load(true), POLL_MS, hasPending && app.chefEnabled)
 
@@ -64,21 +70,30 @@ export function HomePage() {
     <main className="page page--home">
       <header className="home-head">
         <Link to="/" className="brand" aria-label="考拉食堂首页">
-          <img src={logo} alt="" width={52} height={52} className="brand-logo" />
-          <span className="brand-text">
-            <span className="brand-name">考拉食堂</span>
-            <span className="brand-en">KOALA CANTEEN</span>
-          </span>
+          <img src={logo} alt="" width={40} height={40} className="brand-logo" />
+          <span className="brand-name">考拉食堂</span>
         </Link>
         <div className="home-actions">
-          {app.canEdit ? (
-            <Link to="/kitchen/settings" className="icon-btn" aria-label="设置">
-              <Icon name="gear" />
+          {app.canEdit && (
+            <Link to="/kitchen/upload" className="btn btn--primary btn--sm home-upload">
+              <Icon name="plus" size={18} />
+              上传新菜
             </Link>
+          )}
+          {app.canEdit ? (
+            <>
+              <Link to="/kitchen/settings" className="icon-btn" aria-label="设置">
+                <Icon name="gear" />
+              </Link>
+              <button type="button" className="king-pill" onClick={() => setBye(true)} aria-label="大王已登录，点开可退出登录">
+                <Icon name="crown" size={14} />
+                大王
+              </button>
+            </>
           ) : (
             app.ready && (
-              <button type="button" className="login-link" onClick={() => app.login()}>
-                <Icon name="key" size={18} />
+              <button type="button" className="login-pill" onClick={() => app.login()}>
+                <Icon name="crown" size={14} />
                 大王登录
               </button>
             )
@@ -86,19 +101,26 @@ export function HomePage() {
         </div>
       </header>
 
-      <section className="hero" aria-label="今日食堂">
-        <div className="hero-bubble bubble">
-          <b>今天吃什么？</b>
-          <span>{dishes ? (dishes.length ? `${category === ALL ? '食堂' : category}里有 ${dishes.length} 道菜` : '还空着呢') : '翻菜单中…'}</span>
-        </div>
-        <Koala pose="wave" size={92} className="hero-koala" />
-        <ChefLlama pose="idle" size={70} className="hero-llama" animated={false} />
-        <span className="hero-pop" aria-hidden="true">
-          YUM!
-        </span>
-      </section>
+      <div className="home-body">
+        <aside className="home-side">
+          <p className="side-title">分类</p>
+          <CategoryTabs value={category} onChange={pick} />
+          <div className="side-koala" aria-hidden="true">
+            <Koala pose="point" size={64} />
+            <span className="bubble bubble--left">选个分类看看吧！</span>
+          </div>
+        </aside>
 
-      <CategoryTabs value={category} onChange={pick} />
+        <div className="home-main">
+      <div className="greet">
+        <Koala pose={app.canEdit ? 'spoon' : 'wave'} size={64} />
+        <p className="bubble bubble--left">{greeting}</p>
+      </div>
+
+      <h1 className="home-title">
+        {category}
+        {dishes && <small>{dishes.length} 道 · 按上传时间倒序</small>}
+      </h1>
 
       {error ? (
         <StatePanel
@@ -153,15 +175,27 @@ export function HomePage() {
         </div>
       )}
 
+        </div>
+      </div>
+
       <footer className="foot">
         <span>考拉食堂 · 大王的漫画菜谱本</span>
         {app.isMock && <span className="mock-chip">本地模拟数据</span>}
-        {app.canEdit && (
-          <button type="button" className="foot-link" onClick={() => app.logout()}>
-            退出登录
-          </button>
-        )}
       </footer>
+
+      <Confirm
+        open={bye}
+        title="退出大王登录？"
+        body="退出后就和访客看到的一样，草稿和后厨入口都会藏起来。"
+        okText="退出登录"
+        cancelText="留下"
+        art={<Koala pose="wave" size={76} />}
+        onOk={() => {
+          setBye(false)
+          app.logout()
+        }}
+        onCancel={() => setBye(false)}
+      />
 
       {app.canEdit && (
         <Link to="/kitchen/upload" className="fab" aria-label="上传新菜">
