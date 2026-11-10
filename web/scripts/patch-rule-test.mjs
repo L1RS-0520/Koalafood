@@ -15,11 +15,12 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const pick = (d) => ({ ingredients: d.ingredients, steps: d.steps, tips: d.tips, servings: d.servings, total_time: d.total_time })
 
 // —— 1. mock（浏览器） ——
-const server = await createServer({ root: join(here, '..'), mode: 'mock', server: { port: 5197, host: '127.0.0.1' }, logLevel: 'silent' })
+const PORT = Number(process.env.PATCH_TEST_PORT) || 5197 // 默认 5197 不变
+const server = await createServer({ root: join(here, '..'), mode: 'mock', server: { port: PORT, host: '127.0.0.1', strictPort: true }, logLevel: 'silent' })
 await server.listen()
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome' })
 const page = await browser.newPage()
-await page.goto('http://127.0.0.1:5197/')
+await page.goto(`http://127.0.0.1:${PORT}/`)
 const mock = await page.evaluate(async () => {
   localStorage.clear()
   localStorage.setItem('koala-canteen:mock:lag', '0')

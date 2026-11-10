@@ -10,11 +10,13 @@ import { chromium } from 'playwright'
 const here = dirname(fileURLToPath(import.meta.url))
 const fx = (n) => readFileSync(join(here, 'fixtures', n)).toString('base64')
 
-const server = await createServer({ root: join(here, '..'), mode: 'mock', server: { port: 5199, host: '127.0.0.1' }, logLevel: 'silent' })
+// 端口可用 COMPRESS_TEST_PORT 指定（默认 5199 不变）；strictPort：被占用时直接报错，不悄悄换端口连到别人的服务
+const PORT = Number(process.env.COMPRESS_TEST_PORT) || 5199
+const server = await createServer({ root: join(here, '..'), mode: 'mock', server: { port: PORT, host: '127.0.0.1', strictPort: true }, logLevel: 'silent' })
 await server.listen()
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome' })
 const page = await browser.newPage()
-await page.goto('http://127.0.0.1:5199/')
+await page.goto(`http://127.0.0.1:${PORT}/`)
 
 const results = await page.evaluate(
   async ({ gps, rot6, alpha }) => {
