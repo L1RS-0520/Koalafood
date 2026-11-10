@@ -1730,7 +1730,7 @@
   border-top: 2.5px solid var(--ink);
   border-radius: 0;
   background: #e3f4ec;
-  color: #2e7d5b;
+  color: #2a7354; /* #2A7354 在 #E3F4EC 上对比度 5.01；现有 --storage-pct-ok #2F7D57 只有 4.39，不够 4.5 */
   font-family: var(--font-num);
   font-weight: 800;
   font-size: 12px;
