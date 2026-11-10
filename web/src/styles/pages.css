@@ -159,8 +159,10 @@
   font-size: 15px;
   color: var(--muted);
   min-height: var(--touch);
+  min-width: var(--touch);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   position: relative;
   background: none;
   border: 0;
