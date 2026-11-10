@@ -77,9 +77,12 @@ test('onlyNumberIssue：找第一条只写编号的，文案和后端一致（mo
 test('fieldIssueOf：读 details {field, index, reason}；没有 / 旧字符串数组 / 非 VALIDATION 都返回 null', async () => {
   const { fieldIssueOf } = await import('../src/lib/editPatch.ts')
   const msg = '第 3 步只写了编号，补上做法或删掉这一步'
-  assert.deepEqual(fieldIssueOf({ code: 'VALIDATION', message: msg, details: { field: 'steps', index: 2, reason: 'only_number' } }), {
+  // 后端 v2.3.3：index 从 1 起 → 换成 0 起；details.message 优先
+  assert.deepEqual(fieldIssueOf({ code: 'VALIDATION', message: msg, details: { field: 'steps', index: 3, reason: 'only_number', message: msg } }), {
     field: 'steps', index: 2, reason: 'only_number', message: msg,
   })
+  assert.equal(fieldIssueOf({ code: 'VALIDATION', message: '外层', details: { field: 'tips', index: 1, message: '里层' } })?.message, '里层')
+  assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x', details: { field: 'steps', index: 0 } }), null)
   assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x' }), null)
   assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x', details: ['食材最多 50 项'] }), null)
   assert.equal(fieldIssueOf({ code: 'VALIDATION', message: 'x', details: { field: 'name', index: 0 } }), null)

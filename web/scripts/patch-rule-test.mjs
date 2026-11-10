@@ -62,7 +62,7 @@ for (const [id, label] of [['seed-tomato', '已确认的厨驼菜谱'], ['seed-m
 rec(mock.content.after.source === 'manual' && mock.content.after.chef_status === 'confirmed' && same(Object.keys(mock.content.patch), ['steps']), 'mock 改了步骤 → 只发 steps，变成手写并确认')
 rec(mock.patch21?.status === 400 && mock.patch21?.code === 'VALIDATION' && mock.patch21?.message === '份量最多 20 个字，现在 21 个字', 'mock PATCH 份量 21 字 → 400 VALIDATION', mock.patch21?.message)
 rec(mock.post21?.status === 400 && mock.post21?.code === 'VALIDATION' && mock.post21?.message === '总时长最多 20 个字，现在 21 个字', 'mock POST（自己写）总时长 21 字 → 400 VALIDATION', mock.post21?.message)
-rec(mock.onlyNum?.status === 400 && mock.onlyNum?.details?.field === 'steps' && mock.onlyNum?.details?.index === 1 && mock.onlyNum?.details?.reason === 'only_number' && mock.onlyNum?.message === '第 2 步只写了编号，补上做法或删掉这一步', 'mock PATCH 只写编号的步骤 → 400 + details', JSON.stringify(mock.onlyNum))
+rec(mock.onlyNum?.status === 400 && mock.onlyNum?.details?.field === 'steps' && mock.onlyNum?.details?.index === 2 && mock.onlyNum?.details?.message === '第 2 步只写了编号，补上做法或删掉这一步' && mock.onlyNum?.details?.reason === 'only_number' && mock.onlyNum?.message === '第 2 步只写了编号，补上做法或删掉这一步', 'mock PATCH 只写编号的步骤 → 400 + details（index 1 起，带 message）', JSON.stringify(mock.onlyNum))
 rec(mock.ownerHas === true && mock.visitorHas === false, 'mock 访客不返回 chef_requested_at（大王照常有）', `大王 ${mock.ownerHas} / 访客 ${mock.visitorHas}`)
 await browser.close()
 

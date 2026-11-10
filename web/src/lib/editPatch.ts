@@ -69,13 +69,13 @@ export const touchesContent = (patch: object) => CONTENT_KEYS.some((k) => k in p
 export type IssueField = 'steps' | 'ingredients' | 'tips'
 export interface FieldIssue {
   field: IssueField
-  /** 提交出去的（cleanContent 之后的）数组下标，0 起 */
+  /** 提交出去的（cleanContent 之后的）数组下标，0 起（已从后端的 1 起换算） */
   index: number
   reason: string
   message: string
 }
-/** details 里的 index 从几开始。按 JSON 数组下标 0 起；后端若改成 1 起只改这一处 */
-export const ISSUE_INDEX_BASE = 0
+/** details 里的 index 从几开始：后端 v2.3.3 定为 1 起（第 N 条），定位时减 1 */
+export const ISSUE_INDEX_BASE = 1
 
 /** 从 ApiError 里读出“第几条出错”；没有 details、旧版字符串数组、字段不认识都返回 null（按原来的方式处理） */
 export function fieldIssueOf(err: unknown): FieldIssue | null {
@@ -88,7 +88,9 @@ export function fieldIssueOf(err: unknown): FieldIssue | null {
   if (field !== 'steps' && field !== 'ingredients' && field !== 'tips') return null
   const raw = typeof d.index === 'number' ? d.index : typeof d.index === 'string' && /^\d+$/.test(d.index) ? Number(d.index) : NaN
   if (!Number.isInteger(raw) || raw - ISSUE_INDEX_BASE < 0) return null
-  return { field, index: raw - ISSUE_INDEX_BASE, reason: typeof d.reason === 'string' ? d.reason : '', message: typeof e.message === 'string' ? e.message : '' }
+  // v2.3.3：details 里也带 message，优先用它（和 error.message 一样时没区别）
+  const message = typeof d.message === 'string' && d.message ? d.message : typeof e.message === 'string' ? e.message : ''
+  return { field, index: raw - ISSUE_INDEX_BASE, reason: typeof d.reason === 'string' ? d.reason : '', message }
 }
 
 /** 编辑区里的原始行（含空行）→ 提交时 cleanContent 丢掉空行后的下标；反查回原始行下标，找不到返回 -1 */

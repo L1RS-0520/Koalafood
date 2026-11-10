@@ -162,7 +162,8 @@ function validateMeta(c: { servings?: string | null; total_time?: string | null 
 /** 只写了编号的食材/步骤/小贴士 → 400 VALIDATION + details {field, index, reason:'only_number'}（对齐后端 v2.3.3） */
 function validateItems(c: Partial<Pick<RecipeContent, 'ingredients' | 'steps' | 'tips'>>) {
   const it = onlyNumberIssue({ ingredients: c.ingredients ?? [], steps: c.steps ?? [], tips: c.tips ?? [] })
-  if (it) throw new ApiError('VALIDATION', it.message, 400, { field: it.field, index: it.index, reason: it.reason })
+  // 后端 v2.3.3：index 从 1 起，details 里也带 message
+  if (it) throw new ApiError('VALIDATION', it.message, 400, { field: it.field, index: it.index + 1, reason: it.reason, message: it.message })
 }
 
 const emptyContent = (): RecipeContent => ({ ingredients: [], steps: [], tips: [], servings: null, total_time: null })
