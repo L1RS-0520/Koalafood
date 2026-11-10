@@ -551,8 +551,6 @@
 }
 .photo-add {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
   aspect-ratio: 1;
 }
 .photo-add-btn {
@@ -568,24 +566,12 @@
   font-size: 13px;
   font-weight: 700;
 }
-.photo-cam-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 36px;
-  border: var(--line-sm);
-  border-radius: 10px;
-  background: #fff;
-  font-size: 13px;
+.photo-add-count {
+  font-family: var(--font-num);
   font-weight: 700;
 }
-.photo-cam-btn::before {
-  /* 外观 36 高；inset 从内边距框算起：36 + 2×(边框 2 + 2) = 44（设计走查 P1-2） */
-  content: '';
-  position: absolute;
-  inset: -6px -2px;
+.photo-add-btn:disabled {
+  opacity: 0.55;
 }
 .photos.is-invalid .photo-add-btn {
   border-color: var(--danger);

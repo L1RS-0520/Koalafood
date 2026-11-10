@@ -118,7 +118,11 @@ export function UploadPage() {
   const addFiles = async (files: File[]) => {
     const room = LIMITS.photosMax - photos.length
     const take = files.slice(0, Math.max(0, room))
-    setPhotoErr(files.length > take.length ? `最多 ${LIMITS.photosMax} 张照片，多出来的 ${files.length - take.length} 张没加上` : null)
+    // 设计 §5.5：超过 9 张时提示“有 1 张没加进来：最多 9 张照片哦”
+    const over = files.length - take.length
+    const overText = over > 0 ? `有 ${over} 张没加进来：最多 ${LIMITS.photosMax} 张照片哦` : null
+    setPhotoErr(overText)
+    if (overText) app.toast(overText, 'info')
     if (!take.length) return
     const stamp = Date.now()
     const added: LocalPhoto[] = take.map((f, i) => {

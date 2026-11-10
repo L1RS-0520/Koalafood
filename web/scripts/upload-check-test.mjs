@@ -96,6 +96,8 @@ async function del(p, i) {
     check('HEIC 文案 = contract.ts heicPhotoText', list.includes(heicT), heicT)
     check('超 10MB 文案 = contract.ts tooBigPhotoText（12.4 MB）', list.includes(bigT), bigT)
     check('HEIC 格子也按“第 N 张”可数（e2e photoTiles 定位不变）', (await page.getByRole('img', { name: /^第 \d+ 张$/ }).count()) === 5)
+    check('P2-14：最后一格“添加照片 5/9”', (await page.locator('.photo-add-btn').innerText()).replace(/\s+/g, '') === '添加照片5/9')
+    check('P2-14：没有单独的“拍照”按钮，只剩 1 个文件框', (await page.getByRole('button', { name: '拍照' }).count()) === 0 && (await page.locator('input[type=file]').count()) === 1)
     const sizes = await page.locator('.photo-size:visible').allInnerTexts()
     check('合格的显示压缩后大小（封面格按现有样式不显示）', sizes.length === 2 && sizes.every((t) => /^\d[\d,]*KB$/.test(t.trim())), sizes.join(' / '))
     check('封面角标在第 1 张', (await tiles(page).nth(0).locator('.photo-cover-tag').count()) === 1)
@@ -244,7 +246,7 @@ if (ASSERT) {
     Array.from({ length: 10 }, (_, i) => ({ name: `IMG_40${i}.jpg`, mimeType: 'image/jpeg', buffer: fx('gps.jpg') })),
   )
   await waitIdle(page)
-  check('选 10 张：只加 9 张并提示多出 1 张', (await tiles(page).count()) === 9 && (await page.locator('#f-photos').innerText()).includes('多出来的 1 张没加上'))
+  check('选 10 张：只加 9 张，提示“有 1 张没加进来：最多 9 张照片哦”，添加格消失', (await tiles(page).count()) === 9 && (await page.locator('#f-photos').innerText()).includes('有 1 张没加进来：最多 9 张照片哦') && (await page.locator('.photo-add-btn').count()) === 0)
   await ctx.close()
 }
 

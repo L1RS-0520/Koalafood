@@ -72,7 +72,6 @@ export function PhotoManager({
   progress?: { done: number; total: number } | null
 }) {
   const album = useRef<HTMLInputElement>(null)
-  const camera = useRef<HTMLInputElement>(null)
   const [drag, setDrag] = useState<{ from: number; over: number; dx: number; dy: number } | null>(null)
   const start = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const full = items.length >= LIMITS.photosMax
@@ -208,13 +207,19 @@ export function PhotoManager({
         })}
         {!full && (
           <li className="photo-add">
-            <button type="button" className="photo-add-btn" onClick={() => album.current?.click()} disabled={busy}>
-              {busy ? <Spinner /> : <Icon name="image" size={28} />}
-              <span>{progress ? `压缩中 ${progress.done}/${progress.total}` : busy ? '处理中…' : items.length ? '再加几张' : '从相册选'}</span>
-            </button>
-            <button type="button" className="photo-cam-btn" onClick={() => camera.current?.click()} disabled={busy}>
-              <Icon name="camera" size={18} />
-              拍照
+            {/* 设计 P2-14 / §5.5：最后一格是虚线“添加照片 N/9”（手机上点开系统面板，可以拍照也可以从相册选） */}
+            <button
+              type="button"
+              className="photo-add-btn"
+              onClick={() => album.current?.click()}
+              disabled={busy}
+              aria-label={`添加照片，已选 ${items.length}/${LIMITS.photosMax} 张`}
+            >
+              {busy && !progress ? <Spinner /> : <Icon name="camera" size={26} />}
+              <span>添加照片</span>
+              <span className="photo-add-count">
+                {items.length}/{LIMITS.photosMax}
+              </span>
             </button>
           </li>
         )}
@@ -235,7 +240,6 @@ export function PhotoManager({
         </div>
       )}
       <input ref={album} type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple hidden onChange={pick} />
-      <input ref={camera} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onChange={pick} />
       <p className="field-hint">
         {items.length}/{LIMITS.photosMax} 张 · jpg/png/webp，单张 ≤10MB（上传前自动压缩）· 第一张是封面
         {items.length > 1 && '，按住 ⠿ 拖动或用箭头调整顺序'}
