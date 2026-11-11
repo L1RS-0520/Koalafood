@@ -4,7 +4,7 @@
 import { useRef, useState } from 'react'
 import { heicPhotoText, isHeic, LIMITS, tooBigPhotoText } from '../api'
 import { extLabel, type PhotoProblem } from '../lib/compress'
-import { cx, kb } from '../lib/util'
+import { cx, kb, pageOf } from '../lib/util'
 import { Icon } from './Icon'
 import { Confirm, Spinner } from './ui'
 
@@ -224,18 +224,18 @@ export function PhotoManager({
         })}
         {!full && (
           <li className="photo-add">
-            {/* 设计 P2-14 / §5.5：最后一格是虚线“添加照片 N/9”（手机上点开系统面板，可以拍照也可以从相册选） */}
+            {/* 设计 P2-14 / §5.5：最后一格是虚线“添加照片 N / 9”（手机上点开系统面板，可以拍照也可以从相册选） */}
             <button
               type="button"
               className="photo-add-btn"
               onClick={() => album.current?.click()}
               disabled={busy}
-              aria-label={`添加照片，已选 ${items.length}/${LIMITS.photosMax} 张`}
+              aria-label={`添加照片，已选 ${pageOf(items.length, LIMITS.photosMax)} 张`}
             >
               {busy && !progress ? <Spinner /> : <Icon name="camera" size={26} />}
               <span>添加照片</span>
               <span className="photo-add-count">
-                {items.length}/{LIMITS.photosMax}
+                {pageOf(items.length, LIMITS.photosMax)}
               </span>
             </button>
           </li>
@@ -247,7 +247,7 @@ export function PhotoManager({
             <Icon name="image" size={18} />
             <b>正在压缩照片</b>
             <span>
-              {progress.done}/{progress.total}
+              {pageOf(progress.done, progress.total)}
             </span>
           </p>
           <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} aria-label="照片压缩进度">
@@ -258,7 +258,7 @@ export function PhotoManager({
       )}
       <input ref={album} type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" multiple hidden onChange={pick} />
       <p className="field-hint">
-        {items.length}/{LIMITS.photosMax} 张 · jpg/png/webp，单张 ≤10MB（上传前自动压缩）· 第一张是封面
+        {pageOf(items.length, LIMITS.photosMax)} 张 · jpg/png/webp，单张 ≤10MB（上传前自动压缩）· 第一张是封面
         {items.length > 1 && '，按住 ⠿ 拖动或用箭头调整顺序'}
       </p>
       <ProblemList items={items} />

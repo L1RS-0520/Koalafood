@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Photo } from '../api'
-import { cx } from '../lib/util'
+import { cx, pageOf } from '../lib/util'
 import { Icon } from './Icon'
 
 function useSnapIndex(ref: React.RefObject<HTMLDivElement | null>, count: number) {
@@ -144,7 +144,7 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
               type="button"
               className="gallery-slide"
               onClick={() => setZoom(i)}
-              aria-label={`看大图：第 ${i + 1}/${photos.length} 张`}
+              aria-label={`看大图：第 ${pageOf(i + 1, photos.length)} 张`}
             >
               <img src={p.url} alt={`${name} 第 ${i + 1} 张`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" draggable={false} />
             </button>
@@ -160,7 +160,7 @@ export function Gallery({ photos, name }: { photos: Photo[]; name: string }) {
       </div>
       {multi && (
         <p className="gallery-pager" aria-live="polite">
-          {idx + 1} / {photos.length}
+          {pageOf(idx + 1, photos.length)}
         </p>
       )}
       {zoom !== null && <Lightbox photos={photos} start={zoom} name={name} onClose={(i) => (setZoom(null), go(i, false))} />}
@@ -206,7 +206,7 @@ function Lightbox({ photos, start, name, onClose }: { photos: Photo[]; start: nu
       {multi && (
         <>
           <span className="lightbox-count">
-            {idx + 1} / {photos.length}
+            {pageOf(idx + 1, photos.length)}
           </span>
           <button type="button" className="gallery-arrow gallery-arrow--l lightbox-arrow" onClick={() => go(idxRef.current - 1)} aria-label="上一张">
             <Icon name="left" />

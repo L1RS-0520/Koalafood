@@ -94,6 +94,11 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)}MB`
 }
 
+/** 页码和张数：「1 / 3」，斜杠两边有空格（A 定稿） */
+export function pageOf(current: number, total: number): string {
+  return `${current} / ${total}`
+}
+
 export function cx(...xs: (string | false | null | undefined)[]): string {
   return xs.filter(Boolean).join(' ')
 }
