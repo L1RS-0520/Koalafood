@@ -511,6 +511,27 @@
   font-size: 22px;
   line-height: 30px;
 }
+/* 删除确认：书名号和菜名不拆开折行；太长时只在书名号内省略，右书名号留下 */
+.delete-title {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+}
+.quoted-name {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+.quoted-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 .modal-body {
   margin-top: 8px;
   color: var(--text-2);

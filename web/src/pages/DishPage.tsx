@@ -399,7 +399,15 @@ export function DishPage() {
 
       <Confirm
         open={dlg === 'delete'}
-        title={`删掉「${dish.name}」？`}
+        title={
+          <span className="delete-title">
+            删掉
+            <span className="quoted-name" title={dish.name}>
+              「<span className="quoted-name-text">{dish.name}</span>」
+            </span>
+            ？
+          </span>
+        }
         body={`菜谱和 ${dish.photos.length} 张照片会一起删除，删了就找不回来啦。`}
         okText="删除"
         cancelText="再想想"
