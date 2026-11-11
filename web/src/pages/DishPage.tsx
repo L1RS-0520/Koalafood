@@ -1,4 +1,4 @@
-// 菜品详情（规范 §5.3）：菜名 → 元信息 → 主图 + 页码 → 四格步骤 →「更多」。大王操作收在顶栏「···」。
+// 菜品详情（规范 §5.3）：菜名 → 元信息 → 主图 + 页码 → 四格步骤 →「更多」。草稿在正文末尾放「确认」主按钮；其余大王操作收在顶栏「···」。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, POLL_MS, type Dish, type RecipeContent } from '../api'
@@ -221,17 +221,6 @@ export function DishPage() {
   if (owner) {
     if (isDraft) {
       menuItems.push(
-        <button
-          key="confirm"
-          type="button"
-          role="menuitem"
-          className="overflow-item"
-          disabled={!!busy || draftEmpty}
-          title={draftEmpty ? '空草稿不能直接确认' : undefined}
-          onClick={() => run('confirm', () => api.confirmDraft(dish.id), CONFIRMED_TEXT)}
-        >
-          确认
-        </button>,
         <Link key="edit" role="menuitem" className="overflow-item" to={`${editHref}?confirm=1`} onClick={() => setMenu(false)}>
           {draftEmpty ? '我自己写' : '修改后确认'}
         </Link>,
@@ -330,6 +319,20 @@ export function DishPage() {
           <div className="detail-steps">{body}</div>
         </div>
         {after}
+        {owner && isDraft && (
+          <div className="draft-confirm">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={!!busy || draftEmpty}
+              title={draftEmpty ? '空草稿不能直接确认' : undefined}
+              onClick={() => run('confirm', () => api.confirmDraft(dish.id), CONFIRMED_TEXT)}
+            >
+              {busy === 'confirm' ? <Spinner /> : null}
+              确认
+            </button>
+          </div>
+        )}
       </article>
 
       <Dialog

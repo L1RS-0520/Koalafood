@@ -722,6 +722,12 @@
 .detail-steps {
   margin-top: 16px;
 }
+.draft-confirm {
+  margin-top: 24px;
+}
+.draft-confirm .btn {
+  width: 100%;
+}
 .yonkoma {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -739,6 +745,7 @@
   border: var(--line);
   border-radius: var(--r-cell);
   background: var(--card);
+  box-shadow: none;
   min-height: 168px;
   display: flex;
   flex-direction: column;
@@ -1033,6 +1040,13 @@
   }
   .detail-steps {
     margin-top: 0;
+  }
+  .draft-confirm {
+    display: flex;
+    justify-content: center;
+  }
+  .draft-confirm .btn {
+    width: 240px;
   }
   .yonkoma {
     gap: 10px;
