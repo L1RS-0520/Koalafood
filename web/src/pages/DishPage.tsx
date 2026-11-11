@@ -400,7 +400,7 @@ export function DishPage() {
       <Confirm
         open={dlg === 'delete'}
         title={
-          <span className="delete-title">
+          <span className="delete-title" aria-label={`删掉「${dish.name}」？`}>
             删掉
             <span className="quoted-name" title={dish.name}>
               「<span className="quoted-name-text">{dish.name}</span>」
