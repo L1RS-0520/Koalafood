@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="考拉食堂" fill="none">
+<title>考拉食堂</title>
+<defs><clipPath id="iconclip"><rect x="1.80" y="1.80" width="60.40" height="60.40" rx="10.50"/></clipPath></defs>
+<rect x="1.80" y="1.80" width="60.40" height="60.40" rx="10.50" fill="#FFFCFA"/>
+<g clip-path="url(#iconclip)" fill="none" stroke-linejoin="round" stroke-linecap="round">
+
+      <ellipse cx="15.2" cy="31.5" rx="9.2" ry="11.8" fill="#FFFCFA" stroke="#1E1A18" stroke-width="2.5"/>
+      <ellipse cx="48.8" cy="31.5" rx="9.2" ry="11.8" fill="#FFFCFA" stroke="#1E1A18" stroke-width="2.5"/>
+    
+      <ellipse cx="32.0" cy="38.0" rx="16.6" ry="14.8" fill="#FFFCFA" stroke="#1E1A18" stroke-width="2.5"/>
+    
+      <ellipse cx="32.0" cy="12.6" rx="10.4" ry="8.0" fill="#FFFFFF" stroke="#1E1A18" stroke-width="2.5"/>
+      <path d="M25.8 10.6 Q32.0 14.4 38.2 10.6" fill="none" stroke="#1E1A18" stroke-width="1.3" stroke-linecap="round"/>
+      <rect x="23.0" y="17.4" width="18.0" height="6.6" rx="1.2" fill="#FFFFFF" stroke="#1E1A18" stroke-width="2.5"/>
+    
+      <circle cx="26.2" cy="36.2" r="2.25" fill="#1E1A18"/>
+      <circle cx="27.05" cy="35.45" r="0.7" fill="#FFFFFF"/>
+      <circle cx="37.8" cy="36.2" r="2.25" fill="#1E1A18"/>
+      <circle cx="38.65" cy="35.45" r="0.7" fill="#FFFFFF"/>
+      <ellipse cx="32.0" cy="42.0" rx="3.1" ry="3.7" fill="#1E1A18"/>
+      <ellipse cx="30.9" cy="40.7" rx="1.0" ry="1.2" fill="#FFFFFF"/>
+      <path d="M26.8 47.6 Q32.0 50.6 37.2 47.6" fill="none" stroke="#1E1A18" stroke-width="2.5" stroke-linecap="round"/>
+    
+</g>
+<rect x="1.80" y="1.80" width="60.40" height="60.40" rx="10.50" fill="none" stroke="#1E1A18" stroke-width="2.5"/>
+
+      <rect x="52.20" y="52.20" width="7.00" height="7.00" rx="1.00" fill="#FFFCFA" stroke="#C42B31" stroke-width="1.70"/>
+      <circle cx="55.70" cy="55.70" r="1.80" fill="#C42B31"/>
+    
+</svg>

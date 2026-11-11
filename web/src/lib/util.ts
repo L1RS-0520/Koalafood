@@ -45,6 +45,16 @@ export function stepCaption(step: Step, index: number, total: number): string {
   return COMMON_LINES[index % COMMON_LINES.length]
 }
 
+/** 四格底部短说明：优先用 caption，否则取步骤原文前半句（不超过 16 字） */
+export function stepShort(step: Step): string {
+  const cap = step.caption?.trim()
+  if (cap) return cap
+  const text = step.text.trim()
+  const cut = text.split(/[，。；;！!？?]/)[0] || text
+  if (cut.length <= 16) return cut
+  return `${cut.slice(0, 16)}…`
+}
+
 export type StepKind = 'knife' | 'wok' | 'pot' | 'bowl' | 'steam' | 'oven' | 'plate' | 'fridge' | 'spark'
 
 /** 按步骤文字猜一个小插图 */
@@ -82,6 +92,11 @@ export const len = (s: string) => [...s].length
 export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))}KB`
   return `${(n / 1024 / 1024).toFixed(1)}MB`
+}
+
+/** 页码和张数：「1 / 3」，斜杠两边有空格（A 定稿） */
+export function pageOf(current: number, total: number): string {
+  return `${current} / ${total}`
 }
 
 export function cx(...xs: (string | false | null | undefined)[]): string {

@@ -1,16 +1,16 @@
-// P3 菜品详情：菜名 → 相册 → 分类/备注 → 食材 → 步骤漫画；按状态显示提示和操作（访客只看正式内容）
-import { useCallback, useEffect, useRef, useState } from 'react'
+// 菜品详情（规范 §5.3）：菜名 → 元信息 → 主图 + 页码 → 四格步骤 →「更多」。草稿在正文末尾放「确认」主按钮；其余大王操作收在顶栏「···」。
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, CHEF_STATUS, CONFIRMED_TEXT, isEmptyContent, LIMITS, POLL_MS, type Dish, type RecipeContent } from '../api'
-import { ChefLlama, ChefWriting, Dots } from '../components/ChefLlama'
 import { AccountActions } from '../components/AccountActions'
+import { ChefLlama, ChefWriting, Dots } from '../components/ChefLlama'
 import { Gallery } from '../components/Gallery'
 import { Icon } from '../components/Icon'
 import { Koala } from '../components/Koala'
 import { RecipeBody } from '../components/RecipeView'
-import { Confirm, Dialog, PageLoading, Spinner, StatePanel, TopBar } from '../components/ui'
+import { BackButton, SiteHeader } from '../components/SiteHeader'
+import { Confirm, Dialog, PageLoading, Spinner, StatePanel } from '../components/ui'
 import { useApp } from '../lib/app'
-import { categoryTone } from '../lib/category'
 import { usePolling, useTitle } from '../lib/hooks'
 import { cx, dateLabel, len } from '../lib/util'
 
@@ -26,13 +26,12 @@ export function DishPage() {
   const [dlg, setDlg] = useState<null | 'rewrite' | 'delete' | 'discard'>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [request, setRequest] = useState('')
+  const [menu, setMenu] = useState(false)
+  const menuBox = useRef<HTMLDivElement>(null)
   const prev = useRef<string | null>(null)
-  /** 交稿帧 ④：待写 → 草稿时先播 0.8 秒再切到草稿页（设计 §5.7 / §5.8，走查 P2-11） */
   const [handoff, setHandoff] = useState(false)
   useTitle(dish?.name ?? '菜品')
 
-  // B05：load 只依赖稳定的 id / canEdit / toast，不依赖整个 app。
-  // 以前 app（提示条、设置等）一变，load 换新，effect 会 setDish(null)，pending 先假后真，轮询计时被重置，交稿后可能超过 15 秒才出草稿。
   const { canEdit, toast } = app
   const load = useCallback(
     async (silent = false) => {
@@ -59,10 +58,25 @@ export function DishPage() {
     load()
   }, [load])
 
+  useEffect(() => {
+    if (!menu) return
+    const onDoc = (e: MouseEvent) => {
+      if (!menuBox.current?.contains(e.target as Node)) setMenu(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenu(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
+
   const pending = dish?.chef_status === CHEF_STATUS.pending
   usePolling(() => load(true), POLL_MS, !!pending && app.chefEnabled)
 
-  /** 统一执行写操作：401/409 等处理 */
   const run = async (key: string, fn: () => Promise<Dish | void>, ok?: string) => {
     setBusy(key)
     try {
@@ -80,38 +94,47 @@ export function DishPage() {
     } finally {
       setBusy(null)
       setDlg(null)
+      setMenu(false)
     }
   }
 
+  const header = (right?: ReactNode) => (
+    <SiteHeader align="center" left={<BackButton />} right={right} />
+  )
+
   if (err) {
     return (
-      <main className="page page--narrow">
-        <TopBar title="菜品" />
-        <StatePanel
-          pose="think"
-          title={err.status === 404 ? '这道菜找不到了' : '菜没端上来'}
-          text={err.message}
-          action={
-            err.status === 404 ? (
-              <Link className="btn btn--primary" to="/">
-                回食堂首页
-              </Link>
-            ) : (
-              <button type="button" className="btn btn--primary" onClick={() => load()}>
-                <Icon name="refresh" size={18} />
-                再试一次
-              </button>
-            )
-          }
-        />
+      <main className="page page--detail">
+        {header()}
+        <div className="detail">
+          <StatePanel
+            pose="think"
+            title={err.status === 404 ? '这道菜找不到了' : '菜没端上来'}
+            text={err.message}
+            action={
+              err.status === 404 ? (
+                <Link className="btn btn--primary" to="/">
+                  回食堂首页
+                </Link>
+              ) : (
+                <button type="button" className="btn btn--primary" onClick={() => load()}>
+                  <Icon name="refresh" size={18} />
+                  再试一次
+                </button>
+              )
+            }
+          />
+        </div>
       </main>
     )
   }
   if (!dish) {
     return (
-      <main className="page page--narrow">
-        <TopBar title="菜品" />
-        <PageLoading />
+      <main className="page page--detail">
+        {header()}
+        <div className="detail">
+          <PageLoading />
+        </div>
       </main>
     )
   }
@@ -121,172 +144,196 @@ export function DishPage() {
   const isDraft = dish.chef_status === CHEF_STATUS.draft
   const editHref = `/kitchen/dishes/${encodeURIComponent(dish.id)}/edit`
   const owner = app.canEdit
-
-  // —— 中间主体：按角色和状态 ——
-  let body: React.ReactNode
-  if (!owner) {
-    // 访客：只看正式内容；没有正式内容的待写/草稿菜给一句温柔的话
-    body =
-      !hasOfficial && dish.chef_status !== CHEF_STATUS.confirmed ? (
-        <StatePanel pose="taste" title={VISITOR_WAIT} text="过一阵再来看看吧。" className="state-panel--inline" />
-      ) : (
-        <RecipeBody content={official} name={dish.name} />
-      )
-  } else if (pending && !hasOfficial) {
-    body = (
-      <>
-        <ChefAtWork on={app.chefEnabled} requested={dish.requested_note} handoff={handoff} />
-        {/* 只在动画下面放一个（走查 P2-10）；底栏不再重复 */}
-        <div className="center-actions">
-          <Link className={cx('btn', app.chefEnabled ? 'btn--ghost' : 'btn--primary')} to={editHref}>
-            <Icon name="pencil" size={18} />
-            {app.chefEnabled ? '等不及了，我自己写' : '我自己写'}
-          </Link>
-        </div>
-      </>
-    )
-  } else if (isDraft) {
-    body = (
-      <>
-        <DraftReview dish={dish} chefOn={app.chefEnabled} />
-        {hasOfficial && (
-          <details className="official-fold">
-            <summary>
-              <Icon name="down" size={18} />
-              看看现在的正式版
-            </summary>
-            <RecipeBody content={official} />
-          </details>
-        )}
-      </>
-    )
-  } else {
-    body = (
-      <>
-        {pending && <RewritingBanner on={app.chefEnabled} requested={dish.requested_note} editHref={editHref} />}
-        <RecipeBody
-          content={official}
-          name={dish.name}
-          emptyHint="想起来怎么做的时候，随手记几行就好～"
-          emptyAction={
-            <>
-              <Link className="btn btn--primary" to={editHref}>
-                <Icon name="pencil" size={18} />
-                我来写
-              </Link>
-              {app.chefEnabled && (
-                <button type="button" className="btn btn--ghost" onClick={() => (setRequest(''), setDlg('rewrite'))}>
-                  <Icon name="chef" size={18} />
-                  找厨驼写
-                </button>
-              )}
-            </>
-          }
-        />
-      </>
-    )
-  }
-
-  const showSource = hasOfficial && (owner ? dish.chef_status === CHEF_STATUS.confirmed : true)
   const draftEmpty = isDraft && (!dish.draft || isEmptyContent(dish.draft))
+  const shown: RecipeContent = isDraft && dish.draft && !isEmptyContent(dish.draft) ? dish.draft : official
+  const showSource = hasOfficial && (owner ? dish.chef_status === CHEF_STATUS.confirmed : true)
   const sourceLine = showSource
     ? `${dish.source === 'manual' ? '菜谱由大王手写' : '菜谱由厨驼撰写 · 大王确认'} · ${dateLabel(dish.updated_at)}`
     : null
 
-  return (
-    <main className="page page--detail">
-      {/* 中间不放标题（分类在菜名下的胶囊里），右侧放身份区（设计 §5.2，走查 P2-2） */}
-      <TopBar title="" right={<AccountActions />} />
-      <article className={cx('detail', owner && draftEmpty && 'detail--draft-empty')}>
-        <h1 className="detail-name">
-          <span>{dish.name}</span>
-        </h1>
-        <Gallery photos={dish.photos} name={dish.name} />
-        <div className="detail-meta">
-          <span className={cx('tag', `tag--${categoryTone(dish.category)}`)}>{dish.category}</span>
-          {dish.servings && hasOfficial && (
-            <span className="meta-chip">
-              <Icon name="users" size={16} />
-              {dish.servings}
-            </span>
-          )}
-          {dish.total_time && hasOfficial && (
-            <span className="meta-chip meta-chip--num">
-              <Icon name="clock" size={16} />
-              {dish.total_time}
-            </span>
-          )}
-        </div>
-        {owner && isDraft && (
-          <p className="state-bar state-bar--draft" role="status">
-            <Icon name="alert" size={18} />
-            <b>{draftEmpty ? '厨驼没写出来，等大王决定' : '厨驼交稿啦，等大王确认'}</b>
-            <small>草稿只有你能看到</small>
-          </p>
-        )}
-        {owner && isDraft && <ChefMessage dish={dish} />}
-        {dish.note && (
-          <p className="narration-box">
-            <b>大王备注：</b>
-            {dish.note}
-          </p>
-        )}
-        {body}
-        {sourceLine && <p className="detail-foot">{sourceLine}</p>}
-      </article>
+  const servings = shown.servings || (hasOfficial ? dish.servings : null)
+  const totalTime = shown.total_time || (hasOfficial ? dish.total_time : null)
+  const metaParts = [dish.category, servings, totalTime].filter(Boolean)
 
-      {owner && (
-        <div className={cx('action-bar', isDraft && 'action-bar--grid', isDraft && !app.chefEnabled && 'action-bar--three')}>
-          {isDraft ? (
-            <>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => run('confirm', () => api.confirmDraft(dish.id), CONFIRMED_TEXT)}
-                disabled={!!busy || draftEmpty}
-                title={draftEmpty ? '空草稿不能直接确认' : undefined}
-              >
-                {busy === 'confirm' ? <Spinner /> : <Icon name="check" size={18} />}
-                确认
+  let notices: React.ReactNode = null
+  let body: React.ReactNode
+  let after: React.ReactNode = null
+  if (!owner) {
+    body =
+      !hasOfficial && dish.chef_status !== CHEF_STATUS.confirmed ? (
+        <StatePanel pose="taste" title={VISITOR_WAIT} text="过一阵再来看看吧。" className="state-panel--inline" />
+      ) : (
+        <RecipeBody content={official} note={dish.note} source={sourceLine} />
+      )
+  } else if (pending && !hasOfficial) {
+    body = <ChefAtWork on={app.chefEnabled} requested={dish.requested_note} handoff={handoff} />
+  } else if (isDraft) {
+    notices = (
+      <>
+        <p className="state-bar state-bar--draft" role="status">
+          {draftEmpty ? '厨驼没写出来，等大王决定。草稿只有你能看到。' : '厨驼交稿啦，等大王确认。草稿只有你能看到。'}
+        </p>
+        <ChefMessage dish={dish} />
+      </>
+    )
+    body = draftEmpty ? (
+      <p className="draft-empty-text">
+        {app.chefEnabled
+          ? '这份草稿是空的：可以在「···」里让厨驼重写并补充要求，或者自己写。'
+          : '这份草稿是空的：可以在「···」里自己写，或者不要这份草稿。'}
+      </p>
+    ) : (
+      <RecipeBody content={dish.draft!} note={dish.note} />
+    )
+    after = hasOfficial ? (
+      <details className="official-fold">
+        <summary>看看现在的正式版</summary>
+        <RecipeBody content={official} note={dish.note} source={sourceLine} />
+      </details>
+    ) : null
+  } else {
+    notices = pending ? <RewritingBanner on={app.chefEnabled} requested={dish.requested_note} editHref={editHref} /> : null
+    body = (
+      <RecipeBody
+        content={official}
+        note={dish.note}
+        source={sourceLine}
+        emptyHint="想起来怎么做的时候，随手记几行就好～"
+        emptyAction={
+          <>
+            <Link className="btn btn--primary" to={editHref}>
+              <Icon name="pencil" size={18} />
+              我来写
+            </Link>
+            {app.chefEnabled && (
+              <button type="button" className="btn btn--ghost" onClick={() => (setRequest(''), setDlg('rewrite'))}>
+                <Icon name="chef" size={18} />
+                找厨驼写
               </button>
-              <button type="button" className="btn btn--green" onClick={() => nav(`${editHref}?confirm=1`)} disabled={!!busy}>
-                <Icon name="pencil" size={18} />
-                {draftEmpty ? '我自己写' : '修改后确认'}
-              </button>
-              {/* 厨驼关闭时只剩 确认 / 修改后确认 / 不要了 三个键（2+1 排，设计 §5.9） */}
-              {app.chefEnabled && (
-                <button type="button" className="btn btn--ghost" onClick={() => (setRequest(''), setDlg('rewrite'))} disabled={!!busy}>
-                  <Icon name="refresh" size={18} />
-                  让厨驼重写
-                </button>
-              )}
-              <button type="button" className="btn btn--ghost btn--danger-text" onClick={() => setDlg('discard')} disabled={!!busy}>
-                <Icon name="trash" size={18} />
-                不要了
-              </button>
-            </>
-          ) : (
-            <>
-              {!(pending && !hasOfficial) && (
-                <Link className="btn btn--ghost" to={editHref}>
-                  <Icon name="edit" size={18} />
-                  编辑
-                </Link>
-              )}
-              {app.chefEnabled && !pending && (
-                <button type="button" className="btn btn--secondary" onClick={() => (setRequest(''), setDlg('rewrite'))}>
-                  <Icon name="chef" size={18} />
-                  让厨驼重写
-                </button>
-              )}
-              <button type="button" className="btn btn--ghost btn--danger-text" onClick={() => setDlg('delete')} aria-label="删除这道菜">
-                <Icon name="trash" size={18} />
-                删除
-              </button>
-            </>
-          )}
+            )}
+          </>
+        }
+      />
+    )
+  }
+
+  const menuItems: ReactNode[] = []
+  if (owner) {
+    if (isDraft) {
+      menuItems.push(
+        <Link key="edit" role="menuitem" className="overflow-item" to={`${editHref}?confirm=1`} onClick={() => setMenu(false)}>
+          {draftEmpty ? '我自己写' : '修改后确认'}
+        </Link>,
+      )
+      if (app.chefEnabled) {
+        menuItems.push(
+          <button
+            key="rewrite"
+            type="button"
+            role="menuitem"
+            className="overflow-item"
+            disabled={!!busy}
+            onClick={() => (setRequest(''), setDlg('rewrite'), setMenu(false))}
+          >
+            让厨驼重写
+          </button>,
+        )
+      }
+      menuItems.push(
+        <button
+          key="discard"
+          type="button"
+          role="menuitem"
+          className="overflow-item overflow-item--danger"
+          disabled={!!busy}
+          onClick={() => (setDlg('discard'), setMenu(false))}
+        >
+          不要了
+        </button>,
+      )
+    } else {
+      if (!(pending && !hasOfficial)) {
+        menuItems.push(
+          <Link key="edit" role="menuitem" className="overflow-item" to={editHref} onClick={() => setMenu(false)}>
+            编辑
+          </Link>,
+        )
+      } else {
+        menuItems.push(
+          <Link key="write" role="menuitem" className="overflow-item" to={editHref} onClick={() => setMenu(false)}>
+            {app.chefEnabled ? '等不及了，我自己写' : '我自己写'}
+          </Link>,
+        )
+      }
+      if (app.chefEnabled && !pending) {
+        menuItems.push(
+          <button
+            key="rewrite"
+            type="button"
+            role="menuitem"
+            className="overflow-item"
+            onClick={() => (setRequest(''), setDlg('rewrite'), setMenu(false))}
+          >
+            让厨驼重写
+          </button>,
+        )
+      }
+      menuItems.push(
+        <button
+          key="delete"
+          type="button"
+          role="menuitem"
+          className="overflow-item overflow-item--danger"
+          onClick={() => (setDlg('delete'), setMenu(false))}
+        >
+          删除
+        </button>,
+      )
+    }
+  }
+
+  const right = owner ? (
+    <div className="overflow" ref={menuBox}>
+      <button type="button" className="hit" aria-label="更多操作" aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu((v) => !v)}>
+        <Icon name="more" />
+      </button>
+      {menu && (
+        <div className="overflow-menu" role="menu">
+          {menuItems}
         </div>
       )}
+    </div>
+  ) : (
+    <AccountActions />
+  )
+
+  return (
+    <main className="page page--detail">
+      {header(right)}
+      <article className={cx('detail', owner && draftEmpty && 'detail--draft-empty')}>
+        <h1 className="detail-title">{dish.name}</h1>
+        {metaParts.length > 0 && <p className="detail-meta-line">{metaParts.join(' · ')}</p>}
+        {notices}
+        <div className="detail-stage">
+          <Gallery photos={dish.photos} name={dish.name} />
+          <div className="detail-steps">{body}</div>
+        </div>
+        {after}
+        {owner && isDraft && (
+          <div className="draft-confirm">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={!!busy || draftEmpty}
+              title={draftEmpty ? '空草稿不能直接确认' : undefined}
+              onClick={() => run('confirm', () => api.confirmDraft(dish.id), CONFIRMED_TEXT)}
+            >
+              {busy === 'confirm' ? <Spinner /> : null}
+              确认
+            </button>
+          </div>
+        )}
+      </article>
 
       <Dialog
         open={dlg === 'rewrite'}
@@ -352,7 +399,15 @@ export function DishPage() {
 
       <Confirm
         open={dlg === 'delete'}
-        title={`删掉「${dish.name}」？`}
+        title={
+          <span className="delete-title" aria-label={`删掉「${dish.name}」？`}>
+            删掉
+            <span className="quoted-name" title={dish.name}>
+              「<span className="quoted-name-text">{dish.name}</span>」
+            </span>
+            ？
+          </span>
+        }
         body={`菜谱和 ${dish.photos.length} 张照片会一起删除，删了就找不回来啦。`}
         okText="删除"
         cancelText="再想想"
@@ -369,12 +424,10 @@ export function DishPage() {
   )
 }
 
-/** 待写（没有正式内容）：厨驼写作中（看照片 → 想 → 写 循环） */
 function ChefAtWork({ on, requested, handoff }: { on: boolean; requested: string | null; handoff?: boolean }) {
   const [sub, setSub] = useState('正在看大王的照片…')
   return (
     <section className={cx('chef-work', !on && 'chef-work--off')} aria-live="polite">
-      {/* 舞台：宽同内容宽、高 170、绿色网点底（设计 §5.8，走查 P2-11） */}
       <div className="chef-work-art">
         {!on ? (
           <ChefLlama pose="off" size={112} />
@@ -384,7 +437,7 @@ function ChefAtWork({ on, requested, handoff }: { on: boolean; requested: string
           <ChefWriting size={116} onSub={setSub} />
         )}
       </div>
-      <div className="bubble bubble--up chef-work-bubble">
+      <div className="chef-work-copy">
         {on && handoff ? (
           <>
             <h2>交稿啦！</h2>
@@ -416,11 +469,9 @@ function ChefAtWork({ on, requested, handoff }: { on: boolean; requested: string
   )
 }
 
-/** 重写中：旧内容照常显示，顶部叠一条提示 */
 function RewritingBanner({ on, requested, editHref }: { on: boolean; requested: string | null; editHref: string }) {
   return (
     <div className={cx('rewrite-banner', !on && 'rewrite-banner--off')} role="status">
-      <ChefLlama pose={on ? 'write' : 'off'} size={54} animated={on} />
       <div>
         <b>{on ? '厨驼正在重写…' : '重写暂停了（厨驼已经休息啦）'}</b>
         <span>
@@ -437,7 +488,6 @@ function RewritingBanner({ on, requested, editHref }: { on: boolean; requested: 
   )
 }
 
-/** 厨驼留言卡（空草稿时红色警示样式） */
 function ChefMessage({ dish }: { dish: Dish }) {
   const draft = dish.draft
   const empty = !draft || isEmptyContent(draft)
@@ -445,32 +495,10 @@ function ChefMessage({ dish }: { dish: Dish }) {
   if (!msg && !empty) return null
   return (
     <div className={cx('chef-msg', empty && 'chef-msg--alert')}>
-      <span className="chef-msg-avatar">
-        <ChefLlama pose={empty ? 'think' : 'done'} size={56} />
-      </span>
       <div>
         <span className="chef-msg-label">{empty ? '厨驼留言 · 这次没写出来' : '厨驼留言'}</span>
         <p>{msg || '这道菜我没把握写好，大王换个说法再找我，或者自己写吧～'}</p>
       </div>
     </div>
-  )
-}
-
-/** 草稿预览（绿色虚线框）；空草稿给出下一步提示 */
-function DraftReview({ dish, chefOn }: { dish: Dish; chefOn: boolean }) {
-  const draft = dish.draft
-  const empty = !draft || isEmptyContent(draft)
-  if (empty) {
-    return (
-      <p className="draft-empty-text">
-        {chefOn ? '这份草稿是空的：可以「让厨驼重写」并补充要求，或者点「我自己写」。' : '这份草稿是空的：可以点「我自己写」，或者「不要了」。'}
-      </p>
-    )
-  }
-  return (
-    <section className="draft-frame" aria-label="草稿预览">
-      <span className="draft-frame-label">草稿预览</span>
-      <RecipeBody content={draft!} name={dish.name} ending={false} />
-    </section>
   )
 }

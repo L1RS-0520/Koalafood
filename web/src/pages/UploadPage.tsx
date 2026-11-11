@@ -15,7 +15,7 @@ import { useTitle, useUnsavedGuard } from '../lib/hooks'
 import { clearDraft, hasText, LEAVE_UPLOAD_TEXT, loadText, purgeOldPhotoDraft, saveText } from '../lib/uploadDraft'
 import { compressImage, compressProblem, CompressError, mb1, precheckPhoto, PROBLEM_TEXT, type PhotoProblem } from '../lib/compress'
 import { fieldIssueOf, metaErrors, rawIndexOf } from '../lib/editPatch'
-import { cx, photoIndexOf, tooLargeText } from '../lib/util'
+import { cx, pageOf, photoIndexOf, tooLargeText } from '../lib/util'
 
 interface LocalPhoto extends PhotoItem {
   /** 要上传的文件：压缩完是压缩后的；不合格的是原文件（不会上传） */
@@ -408,7 +408,7 @@ export function UploadPage() {
             {progress ? (
               <>
                 <Spinner />
-                正在压缩照片…（{progress.done}/{progress.total}）
+                正在压缩照片…（{pageOf(progress.done, progress.total)}）
               </>
             ) : badCount > 0 ? (
               <>{badButtonText(badIdx)}</>

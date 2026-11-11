@@ -1,12 +1,15 @@
-// 菜品卡片 v2（设计/2026-11-09-菜品卡片v2.png、视觉方向说明 §5.1，需求 F8、§6 P1）：只有封面 4:3 + 菜名。
-// - 访客：没有任何状态（不显示蒙层、角标），待写、草稿中的菜也照常显示封面和菜名。
-// - 大王：pending 加“厨驼正在写菜谱…”蒙层；draft 加“草稿待确认”贴纸；厨驼关闭时的 pending 不显示蒙层。
-// - round-2 按产品审核 P1-1 去掉了分类胶囊、总时长和张数角标（卡片烹饪时间列入“待大王决定”）。
+// 菜品卡片（规范 §5.2）：封面 + 菜名。访客只有封面和菜名；大王状态用菜名旁 12px 次要色文字。
 import { Link } from 'react-router-dom'
 import { CHEF_STATUS, type DishSummary } from '../api'
 import { cx } from '../lib/util'
-import { ChefLlama, Dots } from './ChefLlama'
 import { Icon } from './Icon'
+
+function statusFlag(dish: DishSummary, canEdit: boolean, chefEnabled: boolean): string | null {
+  if (!canEdit) return null
+  if (chefEnabled && dish.chef_status === CHEF_STATUS.pending) return '厨驼正在写'
+  if (dish.chef_status === CHEF_STATUS.draft) return '草稿'
+  return null
+}
 
 export function DishCard({
   dish,
@@ -19,17 +22,17 @@ export function DishCard({
   chefEnabled: boolean
   index?: number
 }) {
-  // 厨驼关闭时待写的菜不显示写作蒙层（§5.1），进详情页再提示“可以改为自己写”
-  const writing = canEdit && chefEnabled && dish.chef_status === CHEF_STATUS.pending
-  const draft = canEdit && dish.chef_status === CHEF_STATUS.draft
+  const flag = statusFlag(dish, canEdit, chefEnabled)
+  const writing = flag === '厨驼正在写'
+  const draft = flag === '草稿'
   return (
     <Link
       to={`/dishes/${encodeURIComponent(dish.id)}`}
-      className={cx('card', 'card--sm', writing && 'card--pending')}
+      className={cx('card')}
       style={{ '--i': index } as React.CSSProperties}
-      aria-label={`${dish.name}${writing ? '，厨驼正在写菜谱' : draft ? '，草稿待确认' : ''}`}
+      aria-label={`${dish.name}${writing ? '，厨驼正在写菜谱' : draft ? '，草稿' : ''}`}
     >
-      <div className="card-cover">
+      <div className="card-pic">
         {dish.photo_url ? (
           <img src={dish.photo_url} alt="" loading="lazy" decoding="async" />
         ) : (
@@ -38,24 +41,10 @@ export function DishCard({
             <span>还没有照片哦</span>
           </div>
         )}
-        {writing && (
-          <div className="card-chef">
-            <span className="card-chef-avatar">
-              <ChefLlama pose="write" size={44} />
-            </span>
-            <span className="card-chef-text">厨驼正在写菜谱…</span>
-            <Dots />
-          </div>
-        )}
-        {draft && (
-          <span className="card-stamp">
-            <i aria-hidden="true" />
-            草稿待确认
-          </span>
-        )}
       </div>
-      <div className="card-body">
+      <div className="card-meta">
         <h3 className="card-name">{dish.name}</h3>
+        {flag && <span className="card-flag">{flag}</span>}
       </div>
     </Link>
   )
@@ -63,9 +52,9 @@ export function DishCard({
 
 export function DishCardSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <div className="card card--sm card--skeleton" style={{ '--i': index } as React.CSSProperties} aria-hidden="true">
-      <div className="card-cover shimmer" />
-      <div className="card-body">
+    <div className="card card--skeleton" style={{ '--i': index } as React.CSSProperties} aria-hidden="true">
+      <div className="card-pic shimmer" />
+      <div className="card-meta">
         <div className="sk-line shimmer" />
       </div>
     </div>
